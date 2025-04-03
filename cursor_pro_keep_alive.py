@@ -182,7 +182,7 @@ def handle_turnstile(tab, max_retries: int = 2, retry_interval: tuple = (1, 2)) 
         # 超出最大重试次数
         logging.error(f"验证失败 - 已达到最大重试次数 {max_retries}")
         logging.error(
-            "请前往开源项目查看更多信息：https://github.com/xiaoxinkeji/cursor-auto-free"
+            "请前往开源项目查看更多信息：https://github.com/xiaoxinkeji/cursor-auto"
         )
         save_screenshot(tab, "failed")
         return False
@@ -437,7 +437,7 @@ def check_cursor_version():
 
 def reset_machine_id(greater_than_0_45):
     if greater_than_0_45:
-        # 提示请手动执行脚本 https://github.com/chengazhen/cursor-auto-free/blob/main/patch_cursor_get_machine_id.py
+        # 提示请手动执行脚本 https://github.com/xiaoxinkeji/cursor-auto/blob/main/patch_cursor_get_machine_id.py
         go_cursor_help.go_cursor_help()
     else:
         MachineIDResetter().reset_machine_ids()
@@ -1061,79 +1061,66 @@ def _update_monitor_display(stages, stage_status, progress=None, remaining=None)
     print("\r" + "="*60 + " "*20)
 
 
-if __name__ == "__main__":
-    print_logo()
+def show_main_menu():
+    """显示主菜单选项"""
+    print("\n请选择操作模式:")
+    print("0. 退出程序")
+    print("1. 仅重置机器码")
+    print("2. 完整注册流程")
     
-    # 检查管理员权限并尝试提升权限
-    if not is_admin():
-        logging.warning("检测到程序未以管理员权限运行，尝试提升权限...")
-        if run_as_admin():
-            # 如果成功提升权限，新进程已启动，当前进程退出
-            sys.exit(0)
-        else:
-            logging.warning("无法提升至管理员权限，某些功能可能无法正常工作")
-    
-    greater_than_0_45 = check_cursor_version()
-    browser_manager = None
-    
-    # 检查是否在CI环境中
-    is_ci_environment = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
-    
+    while True:
+        try:
+            choice = input("请输入选项 (0、1 或 2): ").strip()
+            if choice in ["0", "1", "2"]:
+                return int(choice)
+            else:
+                print("无效的选项，请重新输入")
+        except ValueError:
+            print("请输入有效的数字")
+
+
+def reset_machine_id_only(greater_than_0_45):
+    """仅执行重置机器码操作"""
+    logging.info("开始重置机器码...")
+    reset_machine_id(greater_than_0_45)
+    logging.info("机器码重置完成")
+    print_end_message()
+    print("\n机器码重置操作完成，按任意键返回主菜单...")
+    input()
+    return True
+
+
+def full_registration_process(greater_than_0_45, browser_manager=None):
+    """执行完整注册流程"""
     try:
-        logging.info("\n=== 初始化程序 ===")
-        ExitCursor()
-
-        # 默认使用官方配置
-        use_official_config = True
+        # 是否需要关闭浏览器
+        need_close_browser = False
         
-        # 在CI环境中不需要用户交互
-        if is_ci_environment:
-            logging.info("CI环境：跳过用户交互，仅进行编译")
-            sys.exit(0)
-            
-        # 提示用户选择操作模式
-        print("\n请选择操作模式:")
-        print("1. 仅重置机器码")
-        print("2. 完整注册流程")
-
-        while True:
-            try:
-                choice = int(input("请输入选项 (1 或 2): ").strip())
-                if choice in [1, 2]:
-                    break
-                else:
-                    print("无效的选项,请重新输入")
-            except ValueError:
-                print("请输入有效的数字")
-
-        if choice == 1:
-            # 仅执行重置机器码
-            reset_machine_id(greater_than_0_45)
-            logging.info("机器码重置完成")
-            print_end_message()
-            sys.exit(0)
+        # 如果没有提供browser_manager，创建一个新的
+        if browser_manager is None:
+            browser_manager = BrowserManager()
+            need_close_browser = True
         
-        # 在注册流程中选择配置模式
-        if choice == 2:
-            use_official_config = select_config_mode()
-
+        # 选择配置模式
+        use_official_config = select_config_mode()
+        
         # 加载配置
         configInstance = Config(use_official=use_official_config)
         configInstance.print_config()
 
-        logging.info("正在初始化浏览器...")
+        if not browser_manager.browser:
+            logging.info("正在初始化浏览器...")
+            # 获取user_agent
+            user_agent = get_user_agent()
+            if not user_agent:
+                logging.error("获取user agent失败，使用默认值")
+                user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-        # 获取user_agent
-        user_agent = get_user_agent()
-        if not user_agent:
-            logging.error("获取user agent失败，使用默认值")
-            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-        # 剔除user_agent中的"HeadlessChrome"
-        user_agent = user_agent.replace("HeadlessChrome", "Chrome")
-
-        browser_manager = BrowserManager()
-        browser = browser_manager.init_browser(user_agent)
+            # 剔除user_agent中的"HeadlessChrome"
+            user_agent = user_agent.replace("HeadlessChrome", "Chrome")
+            browser = browser_manager.init_browser(user_agent)
+        else:
+            browser = browser_manager.browser
 
         # 获取并打印浏览器的user-agent
         user_agent = browser.latest_tab.run_js("return navigator.userAgent")
@@ -1217,7 +1204,7 @@ if __name__ == "__main__":
                     logging.info("登录状态验证成功！")
                 
                 logging.info(
-                    "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
+                    "请前往开源项目查看更多信息：https://github.com/xiaoxinkeji/cursor-auto"
                 )
                 logging.info("所有操作已完成")
                 print_end_message()
@@ -1231,13 +1218,80 @@ if __name__ == "__main__":
                 print("="*50 + "\n")
             else:
                 logging.error("获取会话令牌失败，注册流程未完成")
+        
+        # 提示返回主菜单
+        print("\n完整注册流程已完成，按任意键返回主菜单...")
+        input()
+        
+        # 如果是新创建的browser_manager，需要关闭
+        if need_close_browser:
+            browser_manager.quit()
+            
+        return True
+    except Exception as e:
+        logging.error(f"注册流程执行出现错误: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        
+        print("\n注册流程执行出错，请查看日志，按任意键返回主菜单...")
+        input()
+        return False
 
+
+if __name__ == "__main__":
+    print_logo()
+    
+    # 检查管理员权限并尝试提升权限
+    if not is_admin():
+        logging.warning("检测到程序未以管理员权限运行，尝试提升权限...")
+        if run_as_admin():
+            # 如果成功提升权限，新进程已启动，当前进程退出
+            sys.exit(0)
+        else:
+            logging.warning("无法提升至管理员权限，某些功能可能无法正常工作")
+    
+    greater_than_0_45 = check_cursor_version()
+    browser_manager = None
+    
+    # 检查是否在CI环境中
+    is_ci_environment = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
+    
+    try:
+        logging.info("\n=== 初始化程序 ===")
+        ExitCursor()
+        
+        # 在CI环境中不需要用户交互
+        if is_ci_environment:
+            logging.info("CI环境：跳过用户交互，仅进行编译")
+            sys.exit(0)
+            
+        # 创建共享的浏览器管理器实例
+        browser_manager = BrowserManager()
+        
+        # 主程序循环
+        while True:
+            # 显示主菜单并获取用户选择
+            choice = show_main_menu()
+            
+            if choice == 0:
+                # 退出程序
+                logging.info("用户选择退出程序")
+                break
+            elif choice == 1:
+                # 仅执行重置机器码
+                reset_machine_id_only(greater_than_0_45)
+            elif choice == 2:
+                # 执行完整注册流程，共享浏览器管理器实例
+                full_registration_process(greater_than_0_45, browser_manager)
+    
     except Exception as e:
         logging.error(f"程序执行出现错误: {str(e)}")
         import traceback
-
         logging.error(traceback.format_exc())
     finally:
+        # 确保退出前关闭浏览器
         if browser_manager:
             browser_manager.quit()
-        input("\n程序执行完毕，按回车键退出...")
+        logging.info("程序已退出")
+        print("\n程序已退出，感谢使用！按回车键关闭窗口...")
+        input()
