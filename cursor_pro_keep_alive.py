@@ -318,6 +318,7 @@ def sign_up_account(browser, tab):
 class EmailGenerator:
     def __init__(
         self,
+        use_official=False,
         password="".join(
             random.choices(
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*",
@@ -325,7 +326,7 @@ class EmailGenerator:
             )
         ),
     ):
-        configInstance = Config()
+        configInstance = Config(use_official=use_official)
         configInstance.print_config()
         self.domain = configInstance.get_domain()
         self.names = self.load_names()
@@ -492,7 +493,7 @@ if __name__ == "__main__":
 
         logging.info("正在生成随机账号信息...")
 
-        email_generator = EmailGenerator()
+        email_generator = EmailGenerator(use_official=use_official_config)
         first_name = email_generator.default_first_name
         last_name = email_generator.default_last_name
         account = email_generator.generate_email()
