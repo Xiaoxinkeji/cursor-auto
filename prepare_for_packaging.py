@@ -1,6 +1,7 @@
 import os
 import shutil
 import argparse
+import json
 
 def prepare_for_packaging():
     """准备打包前的配置文件"""
@@ -17,10 +18,25 @@ def prepare_for_packaging():
         shutil.copy('.env', 'backup_configs/.env.bak')
         print("已备份环境配置文件")
     
-    # 如果不存在官方配置，则创建临时配置
-    if not os.path.exists('official_config.json') and os.path.exists('official_config.example.json'):
-        shutil.copy('official_config.example.json', 'official_config.json')
-        print("已从示例文件创建临时官方配置")
+    # 如果不存在官方配置，则检查是否存在示例配置
+    if not os.path.exists('official_config.json'):
+        if os.path.exists('official_config.example.json'):
+            shutil.copy('official_config.example.json', 'official_config.json')
+            print("已从示例文件创建临时官方配置")
+        else:
+            # 两个文件都不存在，创建默认配置
+            default_config = {
+                "DOMAIN": "xiao89.site",
+                "IMAP_SERVER": "imap.qq.com",
+                "IMAP_PORT": "993",
+                "IMAP_USER": "3264913523@qq.com",
+                "IMAP_PASS": "avvttgebfmlodbfc",
+                "IMAP_DIR": "inbox",
+                "IMAP_PROTOCOL": "IMAP"
+            }
+            with open('official_config.json', 'w', encoding='utf-8') as f:
+                json.dump(default_config, f, indent=2, ensure_ascii=False)
+            print("已创建默认官方配置文件")
     
     print("打包准备工作完成！")
     return True

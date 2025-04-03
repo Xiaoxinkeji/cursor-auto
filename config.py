@@ -73,7 +73,25 @@ class Config:
                     with open(example_path, 'r', encoding='utf-8') as file:
                         config = json.load(file)
                 else:
-                    raise FileNotFoundError(f"官方配置文件不存在: {config_path}，也找不到示例配置")
+                    # 找不到任何配置文件，使用内置默认配置
+                    logging.warning("未找到官方配置文件或示例配置，使用内置默认配置")
+                    config = {
+                        "DOMAIN": "xiao89.site",
+                        "IMAP_SERVER": "imap.qq.com",
+                        "IMAP_PORT": "993",
+                        "IMAP_USER": "3264913523@qq.com",
+                        "IMAP_PASS": "avvttgebfmlodbfc",
+                        "IMAP_DIR": "inbox",
+                        "IMAP_PROTOCOL": "IMAP"
+                    }
+                    
+                    # 尝试将默认配置写入文件，以便下次使用
+                    try:
+                        with open(config_path, 'w', encoding='utf-8') as f:
+                            json.dump(config, f, indent=2, ensure_ascii=False)
+                        logging.info(f"已创建默认配置文件: {config_path}")
+                    except Exception as write_err:
+                        logging.warning(f"无法写入默认配置文件: {write_err}")
             else:
                 with open(config_path, 'r', encoding='utf-8') as file:
                     config = json.load(file)

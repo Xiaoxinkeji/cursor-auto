@@ -41,7 +41,29 @@ elif example_config_exists:
             os.remove(temp_config)
     atexit.register(cleanup)
 else:
-    print("警告: 未找到官方配置文件或示例配置文件。打包的应用程序将无法使用官方配置模式。")
+    # 两个配置文件都不存在，创建一个默认配置
+    import json
+    temp_config = 'official_config.json.tmp'
+    default_config = {
+        "DOMAIN": "xiao89.site",
+        "IMAP_SERVER": "imap.qq.com",
+        "IMAP_PORT": "993",
+        "IMAP_USER": "3264913523@qq.com",
+        "IMAP_PASS": "avvttgebfmlodbfc",
+        "IMAP_DIR": "inbox",
+        "IMAP_PROTOCOL": "IMAP"
+    }
+    with open(temp_config, 'w', encoding='utf-8') as f:
+        json.dump(default_config, f, indent=2, ensure_ascii=False)
+    a.datas += [('official_config.json', temp_config, 'DATA')]
+    
+    # 添加清理步骤
+    import atexit
+    def cleanup():
+        if os.path.exists(temp_config):
+            os.remove(temp_config)
+    atexit.register(cleanup)
+    print("注意: 未找到官方配置文件或示例配置文件，已创建默认配置。")
 
 pyz = PYZ(a.pure)
 
