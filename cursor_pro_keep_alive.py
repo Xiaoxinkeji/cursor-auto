@@ -27,6 +27,7 @@ from logo import print_logo
 from config import Config
 from datetime import datetime
 import threading
+import webbrowser
 
 # 定义 EMOJI 字典
 EMOJI = {"ERROR": "❌", "WARNING": "⚠️", "INFO": "ℹ️"}
@@ -481,32 +482,32 @@ def select_config_mode():
 
 def restart_cursor():
     """
-    重启Cursor以确保新的认证信息生效
+    重启Cursor应用
+    
+    Returns:
+        bool: 是否成功重启
     """
     try:
         logging.info("正在准备重启Cursor...")
+        # 先确保Cursor已关闭
+        ExitCursor()
         
         # 获取Cursor可执行文件路径
-        cursor_exec = None
+        cursor_exec = ""
         if platform.system() == "Windows":
-            cursor_path = os.path.join(os.getenv("LOCALAPPDATA", ""), "Programs", "Cursor", "Cursor.exe")
-            if os.path.exists(cursor_path):
-                cursor_exec = cursor_path
+            app_path = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Cursor", "Cursor.exe")
+            if os.path.exists(app_path):
+                cursor_exec = f'"{app_path}"'
         elif platform.system() == "Darwin":  # macOS
-            cursor_path = "/Applications/Cursor.app"
-            if os.path.exists(cursor_path):
-                cursor_exec = "open -a Cursor"
-        elif platform.system() == "Linux":
-            # 在Linux上尝试几种可能的路径
-            possible_paths = ["/usr/bin/cursor", "/opt/Cursor/cursor"]
-            for path in possible_paths:
-                if os.path.exists(path):
-                    cursor_exec = path
-                    break
-                    
+            app_path = "/Applications/Cursor.app"
+            if os.path.exists(app_path):
+                cursor_exec = f'open "{app_path}"'
+        else:  # Linux
+            app_path = os.path.expanduser("~/.local/share/cursor-browser/cursor-browser")
+            if os.path.exists(app_path):
+                cursor_exec = f'"{app_path}"'
+        
         if cursor_exec:
-            # 先确保Cursor已经关闭
-            ExitCursor()
             logging.info("Cursor已完全关闭，准备重新启动...")
             
             # 通过子进程启动Cursor，不等待其完成
@@ -523,6 +524,25 @@ def restart_cursor():
             return False
     except Exception as e:
         logging.error(f"重启Cursor时出错: {e}")
+        return False
+
+
+def open_default_browser(url):
+    """使用系统默认浏览器打开指定URL
+    
+    Args:
+        url: 要打开的URL
+        
+    Returns:
+        bool: 是否成功打开
+    """
+    try:
+        # 使用Python标准库打开默认浏览器
+        logging.info(f"正在使用系统默认浏览器打开: {url}")
+        webbrowser.open(url)
+        return True
+    except Exception as e:
+        logging.error(f"打开默认浏览器失败: {e}")
         return False
 
 
@@ -1072,12 +1092,13 @@ def show_main_menu():
     print("1. 仅重置机器码")
     print("2. 传统注册流程（直接修改数据库）")
     print("3. 混合认证注册流程（尝试两种方式）")
-    print("4. 启动登录状态监控")
+    print("4. 引导式注册流程（使用系统默认浏览器）")
+    print("5. 启动登录状态监控")
     
     while True:
         try:
-            choice = input("请输入选项 (0-4): ").strip()
-            if choice in ["0", "1", "2", "3", "4"]:
+            choice = input("请输入选项 (0-5): ").strip()
+            if choice in ["0", "1", "2", "3", "4", "5"]:
                 return int(choice)
             else:
                 print("无效的选项，请重新输入")
@@ -1484,6 +1505,99 @@ def hybrid_registration_process(greater_than_0_45, browser_manager=None):
         return False
 
 
+def browser_guided_auth_process(email, password, reset_machine_id=True):
+    """
+    浏览器引导的认证流程
+    
+    使用系统默认浏览器引导用户登录，结合数据库更新实现认证
+    
+    Args:
+        email: 用户邮箱
+        password: 用户密码
+        reset_machine_id: 是否重置机器码
+        
+    Returns:
+        bool: 是否成功
+    """
+    # 1. 可选步骤：重置机器码
+    if reset_machine_id:
+        logging.info("正在重置机器码...")
+        greater_than_0_45 = check_cursor_version()
+        reset_machine_id_func(greater_than_0_45)
+    
+    # 2. 在默认浏览器中打开Cursor登录页面
+    login_url = "https://authenticator.cursor.sh"
+    if not open_default_browser(login_url):
+        logging.error("无法打开默认浏览器")
+        return False
+    
+    # 3. 指导用户完成登录流程
+    print("\n" + "="*50)
+    print(f"请在已打开的浏览器中完成以下步骤:")
+    print(f"1. 输入邮箱: {email}")
+    print(f"2. 输入密码: {password}")
+    print(f"3. 完成验证")
+    print(f"4. 请确保看到登录成功页面")
+    print(f"5. 完成登录后，回到本程序窗口，按回车继续")
+    print("="*50)
+    input("\n登录完成后按回车键继续...")
+    
+    # 4. 询问用户是否成功登录
+    while True:
+        user_input = input("\n您是否已成功登录到Cursor账号? (y/n): ").strip().lower()
+        if user_input == 'y':
+            break
+        elif user_input == 'n':
+            print("\n请再次尝试登录，或选择取消操作")
+            retry = input("是否重试? (y/n): ").strip().lower()
+            if retry != 'y':
+                logging.info("用户取消了登录操作")
+                return False
+            # 重新打开浏览器登录页面
+            open_default_browser(login_url)
+            input("\n登录完成后按回车键继续...")
+        else:
+            print("无效的输入，请输入 y 或 n")
+    
+    # 5. 询问用户浏览器中显示的会话令牌
+    print("\n" + "="*50)
+    print("为了完成认证，我们需要获取会话令牌。您可以按照以下步骤操作:")
+    print("1. 在已登录的页面，按F12打开开发者工具")
+    print("2. 切换到'应用'或'Application'选项卡")
+    print("3. 在左侧展开'Cookies'，选择'https://authenticator.cursor.sh'")
+    print("4. 在右侧找到名为'session'的cookie")
+    print("5. 复制其'值'(Value)栏的内容")
+    print("="*50)
+    
+    token = input("\n请粘贴会话令牌（如无法获取请直接回车）: ").strip()
+    
+    if not token:
+        print("\n您没有提供会话令牌。我们将尝试直接重启Cursor，但成功率可能较低。")
+        print("如果自动重启后Cursor没有登录，请考虑手动启动Cursor。")
+        
+        # 如果没有令牌，只尝试重启Cursor
+        restart_cursor()
+        return False
+    
+    # 6. 使用获取的令牌更新认证数据库
+    logging.info("正在更新认证数据库...")
+    update_result = update_cursor_auth(email=email, access_token=token, refresh_token=token)
+    if not update_result:
+        logging.error("更新认证数据库失败")
+        return False
+    
+    # 7. 重启Cursor应用
+    logging.info("正在重启Cursor...")
+    restart_result = restart_cursor()
+    if not restart_result:
+        logging.error("重启Cursor失败")
+        return False
+    
+    # 8. 监控登录状态
+    logging.info("正在验证登录状态...")
+    return monitor_cursor_login_status(email)
+
+
 class CursorLoginMonitor:
     """Cursor登录状态监控器，定期检查登录状态并自动重新登录"""
     
@@ -1785,6 +1899,135 @@ def start_login_monitor():
         return False
 
 
+def guided_registration_process(greater_than_0_45):
+    """
+    引导式注册流程，使用系统默认浏览器
+    
+    Args:
+        greater_than_0_45: Cursor版本是否大于0.45
+        
+    Returns:
+        bool: 是否成功
+    """
+    try:
+        # 选择配置模式
+        use_official_config = select_config_mode()
+        
+        # 加载配置
+        configInstance = Config(use_official=use_official_config)
+        configInstance.print_config()
+        
+        # 生成随机账号信息
+        logging.info("正在生成随机账号信息...")
+        try:
+            email_generator = EmailGenerator(use_official=use_official_config)
+            account = email_generator.generate_email()
+            password = email_generator.default_password
+            
+            logging.info(f"生成的邮箱账号: {account}")
+            logging.info(f"生成的密码: {password}")
+            
+            email_handler = EmailVerificationHandler(account, use_official=use_official_config)
+        except Exception as e:
+            logging.error(f"初始化账号生成器或邮箱验证模块失败: {e}")
+            # 尝试使用官方配置
+            logging.info("尝试使用官方配置重试...")
+            use_official_config = True
+            configInstance = Config(use_official=True)
+            email_generator = EmailGenerator(use_official=True)
+            account = email_generator.generate_email()
+            password = email_generator.default_password
+            logging.info(f"使用官方配置重新生成的邮箱账号: {account}")
+            email_handler = EmailVerificationHandler(account, use_official=True)
+        
+        # 打开注册页面
+        sign_up_url = "https://authenticator.cursor.sh/sign-up"
+        if not open_default_browser(sign_up_url):
+            logging.error("无法打开默认浏览器")
+            return False
+        
+        # 引导用户完成注册流程
+        print("\n" + "="*50)
+        print("请在已打开的浏览器中完成Cursor账号注册:")
+        print(f"1. 填写以下信息:")
+        print(f"   - 邮箱: {account}")
+        print(f"   - 密码: {password}")
+        print(f"2. 完成验证码验证")
+        print(f"3. 等待验证邮件 (系统将自动检查)")
+        print("="*50)
+        
+        # 等待用户输入表单
+        input("\n填写完注册表单后按回车键继续...")
+        
+        # 处理验证码邮件
+        print("正在检查验证邮件...")
+        try:
+            code = email_handler.get_verification_code()
+            if code:
+                print(f"\n已获取验证码: {code}")
+                print(f"请在浏览器中输入此验证码")
+                input("\n输入验证码后按回车键继续...")
+            else:
+                print("\n未能获取验证码，请检查邮箱或手动获取验证码")
+                manual_code = input("如果您已手动获取到验证码，请输入(否则直接回车): ").strip()
+                if manual_code:
+                    print(f"请在浏览器中输入验证码: {manual_code}")
+                    input("\n输入验证码后按回车键继续...")
+        except Exception as e:
+            logging.error(f"获取验证码失败: {e}")
+            print("\n无法自动获取验证码，请检查您的邮箱获取验证码")
+            input("在浏览器中完成验证后按回车键继续...")
+        
+        # 询问用户是否完成注册
+        while True:
+            user_input = input("\n您是否已成功完成注册？(y/n): ").strip().lower()
+            if user_input == 'y':
+                break
+            elif user_input == 'n':
+                print("\n请继续在浏览器中完成注册流程")
+                retry = input("是否继续等待? (y/n): ").strip().lower()
+                if retry != 'y':
+                    logging.info("用户取消了注册操作")
+                    return False
+                input("\n完成注册后按回车键继续...")
+            else:
+                print("无效的输入，请输入 y 或 n")
+        
+        # 使用浏览器引导认证过程
+        logging.info("开始执行浏览器引导认证流程...")
+        auth_result = browser_guided_auth_process(account, password, reset_machine_id=True)
+        
+        if auth_result:
+            logging.info("浏览器引导认证流程成功！")
+        else:
+            logging.warning("认证流程可能未完全成功，请检查Cursor登录状态")
+        
+        # 打印账号信息
+        logging.info("\n=== 注册完成 ===")
+        logging.info(f"Cursor 账号信息:\n邮箱: {account}\n密码: {password}")
+        
+        print("\n" + "="*50)
+        print("重要提示：")
+        print("1. 如果Cursor没有自动重启，请手动启动Cursor")
+        print("2. 如果Cursor未显示已登录状态，请重启Cursor")
+        print("3. 如果多次尝试后仍无法登录，请手动登录")
+        print("="*50 + "\n")
+        
+        # 提示返回主菜单
+        print("\n引导式注册流程已完成，按任意键返回主菜单...")
+        input()
+        
+        return True
+    except Exception as e:
+        logging.error(f"引导式注册流程执行出错: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        
+        print("\n注册流程执行出错，请查看日志，按任意键返回主菜单...")
+        input()
+        return False
+
+
 if __name__ == "__main__":
     print_logo()
     
@@ -1834,6 +2077,9 @@ if __name__ == "__main__":
                 # 执行混合认证注册流程，共享浏览器管理器实例
                 hybrid_registration_process(greater_than_0_45, browser_manager)
             elif choice == 4:
+                # 执行引导式注册流程（使用系统默认浏览器）
+                guided_registration_process(greater_than_0_45)
+            elif choice == 5:
                 # 启动登录状态监控
                 start_login_monitor()
     
