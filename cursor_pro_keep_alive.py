@@ -241,7 +241,7 @@ def update_cursor_auth(email=None, access_token=None, refresh_token=None):
     return auth_manager.update_auth(email, access_token, refresh_token)
 
 
-def sign_up_account(browser, tab):
+def sign_up_account(browser, tab, sign_up_url, first_name, last_name, account, password, email_handler, settings_url):
     logging.info("=== 开始注册账号流程 ===")
     logging.info(f"正在访问注册页面: {sign_up_url}")
     tab.get(sign_up_url)
@@ -1172,7 +1172,7 @@ def full_registration_process(greater_than_0_45, browser_manager=None):
         logging.info(f"正在访问登录页面: {login_url}")
         tab.get(login_url)
 
-        if sign_up_account(browser, tab):
+        if sign_up_account(browser, tab, sign_up_url, first_name, last_name, account, password, email_handler, settings_url):
             logging.info("正在获取会话令牌...")
             token = get_cursor_session_token(tab)
             if token:
