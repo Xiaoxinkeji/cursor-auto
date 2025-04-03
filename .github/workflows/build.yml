@@ -25,9 +25,8 @@ jobs:
     
     - name: Create official config
       run: |
-        # 使用Python处理base64解码，确保跨平台兼容性
-        python -c "import base64, json, os; config_data = os.environ.get('OFFICIAL_CONFIG', ''); config_json = '{}' if not config_data else base64.b64decode(config_data).decode('utf-8'); open('official_config.json', 'w').write(config_json); print('配置文件已创建')"
-        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
+        # 使用配置处理脚本解析JSON配置
+        python decode_config.py
       env:
         OFFICIAL_CONFIG: ${{ secrets.OFFICIAL_CONFIG }}
         
@@ -63,9 +62,8 @@ jobs:
     
     - name: Create official config
       run: |
-        # 使用Python处理base64解码，确保跨平台兼容性
-        python -c "import base64, json, os; config_data = os.environ.get('OFFICIAL_CONFIG', ''); config_json = '{}' if not config_data else base64.b64decode(config_data).decode('utf-8'); open('official_config.json', 'w').write(config_json); print('配置文件已创建')"
-        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
+        # 使用配置处理脚本解析JSON配置
+        python decode_config.py
       env:
         OFFICIAL_CONFIG: ${{ secrets.OFFICIAL_CONFIG }}
         
@@ -101,9 +99,8 @@ jobs:
     
     - name: Create official config
       run: |
-        # 使用Python处理base64解码，确保跨平台兼容性
-        python -c "import base64, json, os; config_data = os.environ.get('OFFICIAL_CONFIG', ''); config_json = '{}' if not config_data else base64.b64decode(config_data).decode('utf-8'); open('official_config.json', 'w').write(config_json); print('配置文件已创建')"
-        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
+        # 使用配置处理脚本解析JSON配置
+        python decode_config.py
       env:
         OFFICIAL_CONFIG: ${{ secrets.OFFICIAL_CONFIG }}
         
@@ -139,9 +136,8 @@ jobs:
 
     - name: Create official config
       run: |
-        # 使用Python处理base64解码，确保跨平台兼容性
-        python -c "import base64, json, os; config_data = os.environ.get('OFFICIAL_CONFIG', ''); config_json = '{}' if not config_data else base64.b64decode(config_data).decode('utf-8'); open('official_config.json', 'w').write(config_json); print('配置文件已创建')"
-        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
+        # 使用配置处理脚本解析JSON配置
+        python decode_config.py
       env:
         OFFICIAL_CONFIG: ${{ secrets.OFFICIAL_CONFIG }}
 

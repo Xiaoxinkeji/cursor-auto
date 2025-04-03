@@ -25,13 +25,19 @@
 如果您需要使用 GitHub Actions 自动构建此项目，需要配置 GitHub Secrets：
 
 1. 复制 `official_config.example.json` 为 `official_config.json` 并填写配置
-2. 运行 `prepare_github_secret.py` 脚本对配置文件进行 base64 编码：
-   ```bash
-   python prepare_github_secret.py
+2. 在 GitHub 仓库中创建一个名为 `OFFICIAL_CONFIG` 的 Secret，直接将JSON配置复制粘贴为值，格式如下：
+   ```json
+   {
+     "DOMAIN": "your-domain.com",
+     "IMAP_SERVER": "imap.your-mail.com",
+     "IMAP_PORT": "993",
+     "IMAP_USER": "your-email@example.com",
+     "IMAP_PASS": "your-password-or-app-code",
+     "IMAP_DIR": "inbox",
+     "IMAP_PROTOCOL": "IMAP"
+   }
    ```
-3. 复制生成的 base64 编码内容
-4. 在 GitHub 仓库中创建一个名为 `OFFICIAL_CONFIG` 的 Secret，将复制的内容粘贴为值
-5. 创建名为 `TOKEN` 的 Secret，值为您的 GitHub Personal Access Token（需要有repo权限）
+3. 创建名为 `TOKEN` 的 Secret，值为您的 GitHub Personal Access Token（需要有repo权限）
 
 配置完成后，每次创建新的 tag（格式如 `v1.0.0`）时，GitHub Actions 将自动构建并发布新的版本。
 
@@ -39,12 +45,18 @@
 
 如果在 GitHub Actions 中遇到配置相关的错误：
 
-1. 确保 `OFFICIAL_CONFIG` Secret 包含有效的 base64 编码内容
-2. 您可以使用 `decode_github_secret.py` 脚本来验证 base64 字符串是否可以被正确解码：
-   ```bash
-   python decode_github_secret.py 您的base64字符串
-   ```
-3. 工作流现在使用 Python 来处理 base64 解码，不再依赖系统命令，这提高了跨平台兼容性
+1. 确保 `OFFICIAL_CONFIG` Secret 包含有效的JSON格式
+2. 检查JSON格式是否正确，尤其是确保所有引号都是英文引号，没有多余的逗号或缺少大括号
+3. 注意在GitHub界面粘贴JSON时不要引入额外的空格或换行
+4. 您可以使用在线JSON验证工具（如 jsonlint.com）验证您的JSON格式是否正确
+
+### 安全提示
+
+请注意保护您的邮箱授权码和其他敏感信息：
+
+1. 永远不要在公开的地方分享您的授权码
+2. 如果您不小心泄露了授权码，请立即更改
+3. 建议定期更换授权码，增强安全性
 
 ## 许可证声明
 本项目采用 [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/) 许可证。

@@ -41,6 +41,15 @@ def encode_config_file(file_path: str) -> None:
         json_str = json.dumps(config_data)
         encoded = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
         
+        # 验证生成的base64是否有效
+        try:
+            decoded = base64.b64decode(encoded).decode('utf-8')
+            json.loads(decoded)  # 验证解码后的内容是否是有效的JSON
+            is_valid = True
+        except Exception as e:
+            print(f"{Fore.RED}警告: 生成的base64字符串无法正确解码: {str(e)}{Style.RESET_ALL}")
+            is_valid = False
+            
         # 打印结果
         print(f"\n{Fore.GREEN}=== JSON配置已成功编码为base64格式 ==={Style.RESET_ALL}")
         print(f"\n{Fore.CYAN}原始JSON内容:{Style.RESET_ALL}")
@@ -49,8 +58,17 @@ def encode_config_file(file_path: str) -> None:
         print(f"\n{Fore.CYAN}base64编码结果:{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}{encoded}{Style.RESET_ALL}")
         
+        # 提供验证和使用提示
         print(f"\n{Fore.GREEN}请将上面的base64编码内容添加到GitHub Secrets中，名称为 'OFFICIAL_CONFIG'{Style.RESET_ALL}")
         print(f"\n{Fore.CYAN}注意: GitHub Actions现在使用Python解码base64内容，不再依赖系统命令，提高了跨平台兼容性。{Style.RESET_ALL}")
+        
+        # 添加验证方法提示
+        print(f"\n{Fore.CYAN}您可以使用以下命令验证base64字符串:{Style.RESET_ALL}")
+        print(f"python decode_github_secret.py {encoded}")
+        
+        # 如果需要，也可以添加直接使用JSON的提示
+        print(f"\n{Fore.CYAN}或者也可以直接将原始JSON添加到GitHub Secrets中:{Style.RESET_ALL}")
+        print(f"新版本的工作流也支持直接使用JSON格式的配置，无需base64编码。")
         
     except json.JSONDecodeError as e:
         print(f"{Fore.RED}错误: JSON格式无效 - {str(e)}{Style.RESET_ALL}")
