@@ -56,45 +56,27 @@ class Config:
     def _load_official_config(self, config_path):
         """从官方配置文件加载配置"""
         try:
-            # 检查官方配置文件是否存在
-            if not os.path.exists(config_path):
-                # 检查是否在GitHub Actions环境中
-                if os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true':
-                    # GitHub Actions环境中，配置由workflow中的base64解码创建
-                    if os.path.exists(config_path):
-                        logging.info("CI环境: 使用workflow创建的配置文件")
-                    else:
-                        logging.error("CI环境: 配置文件未找到，请检查GitHub Secrets是否正确设置")
-
-                # 尝试使用示例配置
-                example_path = config_path.replace('.json', '.example.json')
-                if os.path.exists(example_path):
-                    logging.warning(f"官方配置文件不存在，尝试使用示例配置: {example_path}")
-                    with open(example_path, 'r', encoding='utf-8') as file:
+            # 优先使用内置配置，不再写入本地文件
+            # 检查是否在GitHub Actions环境中
+            if os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true':
+                # 在CI环境中尝试加载文件
+                if os.path.exists(config_path):
+                    logging.info("CI环境: 使用workflow创建的配置文件")
+                    with open(config_path, 'r', encoding='utf-8') as file:
                         config = json.load(file)
                 else:
-                    # 找不到任何配置文件，使用内置默认配置
-                    logging.warning("未找到官方配置文件或示例配置，使用内置默认配置")
-                    config = {
-                        "DOMAIN": "xiao89.site",
-                        "IMAP_SERVER": "imap.qq.com",
-                        "IMAP_PORT": "993",
-                        "IMAP_USER": "3264913523@qq.com",
-                        "IMAP_PASS": "avvttgebfmlodbfc",
-                        "IMAP_DIR": "inbox",
-                        "IMAP_PROTOCOL": "IMAP"
-                    }
-                    
-                    # 尝试将默认配置写入文件，以便下次使用
-                    try:
-                        with open(config_path, 'w', encoding='utf-8') as f:
-                            json.dump(config, f, indent=2, ensure_ascii=False)
-                        logging.info(f"已创建默认配置文件: {config_path}")
-                    except Exception as write_err:
-                        logging.warning(f"无法写入默认配置文件: {write_err}")
-            else:
+                    logging.error("CI环境: 配置文件未找到，请检查GitHub Secrets是否正确设置")
+                    # 使用内置默认配置作为备用
+                    config = self._get_default_config()
+            elif os.path.exists(config_path):
+                # 如果本地存在配置文件，读取它（确保向后兼容）
                 with open(config_path, 'r', encoding='utf-8') as file:
                     config = json.load(file)
+                logging.info("使用现有的官方配置文件")
+            else:
+                # 使用内置默认配置
+                logging.info("使用内置官方配置")
+                config = self._get_default_config()
                 
             # 设置配置项
             self.domain = config.get("DOMAIN", "")
@@ -106,9 +88,27 @@ class Config:
             self.protocol = config.get("IMAP_PROTOCOL", "POP3")
         except Exception as e:
             logging.error(f"加载官方配置失败: {e}")
-            # 加载失败后回退到自定义配置
-            self.using_official = False
-            self._load_env_config()
+            # 加载失败后回退到内置配置
+            config = self._get_default_config()
+            self.domain = config.get("DOMAIN", "")
+            self.imap_server = config.get("IMAP_SERVER", "")
+            self.imap_port = config.get("IMAP_PORT", "")
+            self.imap_user = config.get("IMAP_USER", "")
+            self.imap_pass = config.get("IMAP_PASS", "")
+            self.imap_dir = config.get("IMAP_DIR", "inbox")
+            self.protocol = config.get("IMAP_PROTOCOL", "POP3")
+    
+    def _get_default_config(self):
+        """返回内置的默认配置"""
+        return {
+            "DOMAIN": "xiao89.site",
+            "IMAP_SERVER": "imap.qq.com",
+            "IMAP_PORT": "993",
+            "IMAP_USER": "3264913523@qq.com",
+            "IMAP_PASS": "avvttgebfmlodbfc",
+            "IMAP_DIR": "inbox",
+            "IMAP_PROTOCOL": "IMAP"
+        }
 
     def _load_env_config(self):
         """从.env文件加载配置"""
@@ -202,16 +202,35 @@ class Config:
         return isinstance(value, str) and len(str(value).strip()) > 0
 
     def print_config(self):
-        """打印当前配置信息"""
+        """打印当前配置信息（隐藏敏感信息）"""
         source = "官方配置" if self.using_official else "自定义配置"
-        logging.info(f"\033[32m配置来源: {source}\033[0m")
-        logging.info(f"\033[32m邮箱协议: {self.protocol.upper()}\033[0m")
-        logging.info(f"\033[32m邮箱服务器: {self.imap_server}\033[0m")
-        logging.info(f"\033[32m邮箱端口: {self.imap_port}\033[0m")
-        logging.info(f"\033[32m邮箱用户名: {self.imap_user}\033[0m")
-        logging.info(f"\033[32m邮箱密码: {'*' * len(self.imap_pass)}\033[0m")
-        logging.info(f"\033[32m收件箱目录: {self.imap_dir}\033[0m")
-        logging.info(f"\033[32m域名: {self.domain}\033[0m")
+        logging.info(f"配置来源: {source}")
+        logging.info(f"邮箱协议: {self.protocol.upper()}")
+        
+        # 隐藏敏感信息
+        hidden_user = self._hide_email(self.imap_user)
+        hidden_pass = "********" # 完全隐藏密码
+        
+        # 只打印必要的信息
+        logging.info(f"邮箱服务器: {self.imap_server}")
+        logging.info(f"邮箱用户名: {hidden_user}")
+        logging.info(f"域名: {self.domain}")
+    
+    def _hide_email(self, email):
+        """隐藏邮箱地址中间部分"""
+        if not email or '@' not in email:
+            return "********"
+        
+        parts = email.split('@')
+        username = parts[0]
+        domain = parts[1]
+        
+        if len(username) <= 3:
+            hidden_username = username[0] + "*" * (len(username) - 1)
+        else:
+            hidden_username = username[0] + "*" * (len(username) - 2) + username[-1]
+            
+        return f"{hidden_username}@{domain}"
 
 
 # 使用示例

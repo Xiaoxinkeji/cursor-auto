@@ -2,6 +2,7 @@ import os
 import platform
 import json
 import sys
+import ctypes
 from colorama import Fore, Style
 from enum import Enum
 from typing import Optional
@@ -27,6 +28,35 @@ from datetime import datetime
 
 # 定义 EMOJI 字典
 EMOJI = {"ERROR": "❌", "WARNING": "⚠️", "INFO": "ℹ️"}
+
+
+def is_admin():
+    """检查程序是否以管理员权限运行"""
+    try:
+        if platform.system() == "Windows":
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+        else:
+            # Unix系统通常检查EUID是否为0
+            return os.geteuid() == 0
+    except Exception:
+        return False
+
+
+def run_as_admin():
+    """尝试以管理员权限重新启动程序"""
+    try:
+        if platform.system() == "Windows":
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+            sys.exit(0)
+        else:
+            # 在macOS和Linux上尝试用sudo重启
+            if os.path.exists("/usr/bin/sudo") or os.path.exists("/bin/sudo"):
+                os.system(f"sudo {sys.executable} {' '.join(sys.argv)}")
+                sys.exit(0)
+    except Exception as e:
+        logging.error(f"提升权限失败: {e}")
+        return False
+    return True
 
 
 class VerificationStatus(Enum):
@@ -422,6 +452,16 @@ def select_config_mode():
 
 if __name__ == "__main__":
     print_logo()
+    
+    # 检查管理员权限并尝试提升权限
+    if not is_admin():
+        logging.warning("检测到程序未以管理员权限运行，尝试提升权限...")
+        if run_as_admin():
+            # 如果成功提升权限，新进程已启动，当前进程退出
+            sys.exit(0)
+        else:
+            logging.warning("无法提升至管理员权限，某些功能可能无法正常工作")
+    
     greater_than_0_45 = check_cursor_version()
     browser_manager = None
     
@@ -432,12 +472,8 @@ if __name__ == "__main__":
         logging.info("\n=== 初始化程序 ===")
         ExitCursor()
 
-        # 选择配置模式
-        use_official_config = select_config_mode()
-        
-        # 加载配置
-        configInstance = Config(use_official=use_official_config)
-        configInstance.print_config()
+        # 默认使用官方配置
+        use_official_config = True
         
         # 在CI环境中不需要用户交互
         if is_ci_environment:
@@ -465,6 +501,14 @@ if __name__ == "__main__":
             logging.info("机器码重置完成")
             print_end_message()
             sys.exit(0)
+        
+        # 在注册流程中选择配置模式
+        if choice == 2:
+            use_official_config = select_config_mode()
+
+        # 加载配置
+        configInstance = Config(use_official=use_official_config)
+        configInstance.print_config()
 
         logging.info("正在初始化浏览器...")
 
