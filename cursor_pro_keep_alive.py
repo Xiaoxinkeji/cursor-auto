@@ -26,6 +26,7 @@ from get_email_code import EmailVerificationHandler
 from logo import print_logo
 from config import Config
 from datetime import datetime
+import threading
 
 # 定义 EMOJI 字典
 EMOJI = {"ERROR": "❌", "WARNING": "⚠️", "INFO": "ℹ️"}
@@ -435,7 +436,10 @@ def check_cursor_version():
     return patch_cursor_get_machine_id.version_check(version, min_version="0.45.0")
 
 
-def reset_machine_id(greater_than_0_45):
+def reset_machine_id_func(greater_than_0_45):
+    """
+    重置机器码
+    """
     if greater_than_0_45:
         # 提示请手动执行脚本 https://github.com/xiaoxinkeji/cursor-auto/blob/main/patch_cursor_get_machine_id.py
         go_cursor_help.go_cursor_help()
@@ -1066,12 +1070,14 @@ def show_main_menu():
     print("\n请选择操作模式:")
     print("0. 退出程序")
     print("1. 仅重置机器码")
-    print("2. 完整注册流程")
+    print("2. 传统注册流程（直接修改数据库）")
+    print("3. 混合认证注册流程（尝试两种方式）")
+    print("4. 启动登录状态监控")
     
     while True:
         try:
-            choice = input("请输入选项 (0、1 或 2): ").strip()
-            if choice in ["0", "1", "2"]:
+            choice = input("请输入选项 (0-4): ").strip()
+            if choice in ["0", "1", "2", "3", "4"]:
                 return int(choice)
             else:
                 print("无效的选项，请重新输入")
@@ -1082,7 +1088,7 @@ def show_main_menu():
 def reset_machine_id_only(greater_than_0_45):
     """仅执行重置机器码操作"""
     logging.info("开始重置机器码...")
-    reset_machine_id(greater_than_0_45)
+    reset_machine_id_func(greater_than_0_45)
     logging.info("机器码重置完成")
     print_end_message()
     print("\n机器码重置操作完成，按任意键返回主菜单...")
@@ -1091,7 +1097,7 @@ def reset_machine_id_only(greater_than_0_45):
 
 
 def full_registration_process(greater_than_0_45, browser_manager=None):
-    """执行完整注册流程"""
+    """执行完整注册流程（传统方式，直接修改数据库）"""
     try:
         # 是否需要关闭浏览器
         need_close_browser = False
@@ -1176,32 +1182,14 @@ def full_registration_process(greater_than_0_45, browser_manager=None):
             logging.info("正在获取会话令牌...")
             token = get_cursor_session_token(tab)
             if token:
-                # 先重置机器码，然后更新认证信息，再重启Cursor
-                logging.info("开始重置机器码...")
-                reset_machine_id(greater_than_0_45)
+                # 使用增强的认证流程
+                logging.info("开始执行增强认证流程...")
+                auth_result = enhanced_auth_process(account, password, token, reset_machine_id=True)
                 
-                logging.info("重置完成，现在更新认证信息...")
-                update_cursor_auth(
-                    email=account, access_token=token, refresh_token=token
-                )
-                
-                # 验证登录状态
-                login_verified = verify_cursor_login(account)
-                if not login_verified:
-                    logging.warning("登录状态验证失败，尝试重启Cursor...")
-                    # 重启Cursor以确保认证生效
-                    if restart_cursor():
-                        # 监控重启后的Cursor登录状态
-                        logging.info("开始监控重启后的Cursor登录状态...")
-                        monitor_result = monitor_cursor_login_status(account)
-                        if monitor_result:
-                            logging.info("登录状态监控成功，Cursor已正确加载新账号!")
-                        else:
-                            logging.warning("登录状态监控失败，请参考上述建议手动处理")
-                    else:
-                        logging.warning("Cursor自动重启失败，请手动启动Cursor并登录")
+                if auth_result:
+                    logging.info("增强认证流程成功！")
                 else:
-                    logging.info("登录状态验证成功！")
+                    logging.warning("增强认证流程可能未完全成功，请检查Cursor登录状态")
                 
                 logging.info(
                     "请前往开源项目查看更多信息：https://github.com/xiaoxinkeji/cursor-auto"
@@ -1220,7 +1208,7 @@ def full_registration_process(greater_than_0_45, browser_manager=None):
                 logging.error("获取会话令牌失败，注册流程未完成")
         
         # 提示返回主菜单
-        print("\n完整注册流程已完成，按任意键返回主菜单...")
+        print("\n传统注册流程已完成，按任意键返回主菜单...")
         input()
         
         # 如果是新创建的browser_manager，需要关闭
@@ -1235,6 +1223,565 @@ def full_registration_process(greater_than_0_45, browser_manager=None):
         
         print("\n注册流程执行出错，请查看日志，按任意键返回主菜单...")
         input()
+        return False
+
+
+def enhanced_auth_process(email, password, token, reset_machine_id=True):
+    """
+    增强的认证处理流程，整合数据库直接更新和保持浏览器登录两种方式
+    
+    这个函数执行以下步骤：
+    1. 直接更新 SQLite 数据库中的认证信息（传统方式）
+    2. 确保浏览器处于登录状态（支持可能存在的浏览器认证机制）
+    3. 重启 Cursor 应用
+    4. 保持浏览器一段时间后关闭
+    5. 监控登录状态
+    
+    Args:
+        email: 账号邮箱
+        password: 账号密码，用于保持浏览器登录状态
+        token: 会话令牌
+        reset_machine_id: 是否重置机器码
+        
+    Returns:
+        bool: 登录是否成功
+    """
+    logging.info("开始执行增强认证流程...")
+    
+    # 1. 先直接更新数据库（传统方式）
+    logging.info("正在更新认证数据库...")
+    update_result = update_cursor_auth(email=email, access_token=token, refresh_token=token)
+    if not update_result:
+        logging.error("更新认证数据库失败")
+        return False
+    
+    # 2. 可选：重置机器码
+    if reset_machine_id:
+        logging.info("正在重置机器码...")
+        greater_than_0_45 = check_cursor_version()
+        reset_machine_id_func(greater_than_0_45)
+    
+    # 3. 在重启Cursor前，确保浏览器处于登录状态
+    logging.info("准备浏览器环境，保持登录状态...")
+    browser_manager = BrowserManager()
+    try:
+        browser = browser_manager.init_browser()
+        tab = browser.latest_tab
+        
+        # 访问登录页面并确保登录
+        login_url = "https://authenticator.cursor.sh"
+        tab.get(login_url)
+        
+        # 检查是否需要登录
+        if tab.ele("@name=email", timeout=5):
+            logging.info("浏览器未登录，执行登录流程...")
+            # 输入邮箱
+            tab.ele("@name=email").input(email)
+            time.sleep(random.uniform(1, 2))
+            
+            # 点击下一步按钮
+            tab.ele("@type=submit").click()
+            time.sleep(3)
+            
+            # 处理Turnstile验证
+            handle_turnstile(tab)
+            
+            # 输入密码
+            if tab.ele("@name=password", timeout=10):
+                tab.ele("@name=password").input(password)
+                time.sleep(random.uniform(1, 2))
+                
+                # 提交密码
+                tab.ele("@type=submit").click()
+                time.sleep(3)
+                
+                # 处理Turnstile验证
+                handle_turnstile(tab)
+                
+                # 检查是否登录成功
+                login_success = False
+                if tab.ele("Account Settings", timeout=10) or tab.ele("User Profile", timeout=2):
+                    login_success = True
+                    logging.info("浏览器已成功登录")
+                elif "dashboard" in tab.url or "cursors" in tab.url:
+                    login_success = True
+                    logging.info("浏览器已成功登录")
+                
+                if not login_success:
+                    logging.warning("浏览器登录可能失败，但将继续尝试")
+            else:
+                logging.warning("无法输入密码，浏览器可能已登录或存在问题")
+        else:
+            logging.info("浏览器可能已处于登录状态")
+            
+        # 访问授权页面以保持登录状态明显
+        tab.get("https://www.cursor.com/settings")
+        time.sleep(2)
+        
+        # 4. 重启Cursor
+        logging.info("浏览器已准备就绪，现在重启Cursor...")
+        restart_result = restart_cursor()
+        if not restart_result:
+            logging.error("重启Cursor失败")
+            return False
+        
+        # 5. 在Cursor启动后，保持浏览器一段时间，再关闭
+        wait_time = 30  # 给Cursor足够时间启动并可能访问浏览器
+        logging.info(f"保持浏览器打开 {wait_time} 秒，让Cursor有机会访问...")
+        
+        for i in range(wait_time):
+            if i % 5 == 0:  # 每5秒输出一次日志
+                logging.info(f"浏览器将保持打开，还剩 {wait_time - i} 秒...")
+            time.sleep(1)
+            
+    except Exception as e:
+        logging.error(f"浏览器操作过程出错: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+    finally:
+        # 关闭浏览器
+        logging.info("正在关闭浏览器...")
+        browser_manager.quit()
+    
+    # 6. 监控登录状态
+    logging.info("开始监控Cursor登录状态...")
+    return monitor_cursor_login_status(email)
+
+
+def hybrid_registration_process(greater_than_0_45, browser_manager=None):
+    """
+    混合认证方式的注册流程，同时尝试数据库直接更新和浏览器认证
+    
+    Args:
+        greater_than_0_45: Cursor版本是否大于0.45
+        browser_manager: 可选的浏览器管理器实例
+        
+    Returns:
+        bool: 是否成功
+    """
+    try:
+        # 是否需要关闭浏览器
+        need_close_browser = False
+        
+        # 如果没有提供browser_manager，创建一个新的
+        if browser_manager is None:
+            browser_manager = BrowserManager()
+            need_close_browser = True
+        
+        # 选择配置模式
+        use_official_config = select_config_mode()
+        
+        # 加载配置
+        configInstance = Config(use_official=use_official_config)
+        configInstance.print_config()
+
+        if not browser_manager.browser:
+            logging.info("正在初始化浏览器...")
+            # 获取user_agent
+            user_agent = get_user_agent()
+            if not user_agent:
+                logging.error("获取user agent失败，使用默认值")
+                user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+            # 剔除user_agent中的"HeadlessChrome"
+            user_agent = user_agent.replace("HeadlessChrome", "Chrome")
+            browser = browser_manager.init_browser(user_agent)
+        else:
+            browser = browser_manager.browser
+
+        # 获取并打印浏览器的user-agent
+        user_agent = browser.latest_tab.run_js("return navigator.userAgent")
+
+        logging.info(
+            "请前往开源项目查看更多信息：https://github.com/xiaoxinkeji/cursor-auto"
+        )
+        logging.info("\n=== 配置信息 ===")
+        login_url = "https://authenticator.cursor.sh"
+        sign_up_url = "https://authenticator.cursor.sh/sign-up"
+        settings_url = "https://www.cursor.com/settings"
+
+        logging.info("正在生成随机账号信息...")
+
+        try:
+            # 确保使用全局配置实例而不是创建新的配置实例
+            email_generator = EmailGenerator(use_official=use_official_config)
+            first_name = email_generator.default_first_name
+            last_name = email_generator.default_last_name
+            account = email_generator.generate_email()
+            password = email_generator.default_password
+
+            logging.info(f"生成的邮箱账号: {account}")
+
+            logging.info("正在初始化邮箱验证模块...")
+            email_handler = EmailVerificationHandler(account, use_official=use_official_config)
+        except Exception as e:
+            logging.error(f"初始化账号生成器或邮箱验证模块失败: {e}")
+            logging.error("可能是配置问题，请确保您的环境配置正确")
+            # 尝试继续执行，使用官方配置重试
+            logging.info("尝试使用官方配置重试...")
+            use_official_config = True
+            configInstance = Config(use_official=True)  # 强制使用官方配置
+            email_generator = EmailGenerator(use_official=True)
+            first_name = email_generator.default_first_name
+            last_name = email_generator.default_last_name
+            account = email_generator.generate_email()
+            password = email_generator.default_password
+            logging.info(f"使用官方配置重新生成的邮箱账号: {account}")
+            email_handler = EmailVerificationHandler(account, use_official=True)
+
+        tab = browser.latest_tab
+        tab.run_js("try { turnstile.reset() } catch(e) { }")
+
+        logging.info("\n=== 开始注册流程 ===")
+        logging.info(f"正在访问登录页面: {login_url}")
+        tab.get(login_url)
+
+        if sign_up_account(browser, tab, sign_up_url, first_name, last_name, account, password, email_handler, settings_url):
+            logging.info("正在获取会话令牌...")
+            token = get_cursor_session_token(tab)
+            if token:
+                # 使用增强的认证流程
+                logging.info("开始执行增强认证流程...")
+                auth_result = enhanced_auth_process(account, password, token, reset_machine_id=True)
+                
+                if auth_result:
+                    logging.info("增强认证流程成功！")
+                else:
+                    logging.warning("增强认证流程可能未完全成功，请检查Cursor登录状态")
+                
+                logging.info(
+                    "请前往开源项目查看更多信息：https://github.com/xiaoxinkeji/cursor-auto"
+                )
+                logging.info("所有操作已完成")
+                print_end_message()
+                
+                # 提示用户检查登录状态
+                print("\n" + "="*50)
+                print("重要提示：")
+                print("1. 如果Cursor没有自动重启，请手动启动Cursor")
+                print("2. 如果Cursor未显示已登录状态，请重启Cursor")
+                print("3. 如果多次尝试后仍无法登录，请手动登录")
+                print("="*50 + "\n")
+            else:
+                logging.error("获取会话令牌失败，注册流程未完成")
+        
+        # 提示返回主菜单
+        print("\n混合认证注册流程已完成，按任意键返回主菜单...")
+        input()
+        
+        # 如果是新创建的browser_manager，需要关闭
+        if need_close_browser:
+            browser_manager.quit()
+            
+        return True
+    except Exception as e:
+        logging.error(f"混合认证注册流程执行出现错误: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        
+        print("\n注册流程执行出错，请查看日志，按任意键返回主菜单...")
+        input()
+        return False
+
+
+class CursorLoginMonitor:
+    """Cursor登录状态监控器，定期检查登录状态并自动重新登录"""
+    
+    def __init__(self, email, password, check_interval=30*60, retry_interval=5*60, reset_machine_id=True):
+        """
+        初始化监控器
+        
+        Args:
+            email: 账号邮箱
+            password: 账号密码
+            check_interval: 检查间隔时间（秒），默认30分钟
+            retry_interval: 重试间隔时间（秒），默认5分钟
+            reset_machine_id: 是否在重新登录时重置机器码
+        """
+        self.email = email
+        self.password = password
+        self.check_interval = check_interval
+        self.retry_interval = retry_interval
+        self.reset_machine_id = reset_machine_id
+        self.running = False
+        self.thread = None
+        self.last_check_time = 0
+        self.login_attempts = 0
+        self.successful_logins = 0
+        
+    def start_monitoring(self):
+        """启动监控线程"""
+        if self.thread and self.thread.is_alive():
+            logging.warning("监控已在运行中")
+            return False
+            
+        self.running = True
+        self.thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+        self.thread.start()
+        logging.info(f"已启动Cursor登录状态监控，检查间隔: {self.check_interval/60} 分钟")
+        return True
+        
+    def stop_monitoring(self):
+        """停止监控线程"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=5)
+        logging.info("Cursor登录状态监控已停止")
+        return True
+        
+    def _monitoring_loop(self):
+        """监控主循环"""
+        # 首次立即检查
+        self._check_login_status()
+        
+        while self.running:
+            try:
+                # 等待下一次检查
+                time.sleep(self.check_interval)
+                if not self.running:
+                    break
+                
+                # 检查登录状态
+                self._check_login_status()
+            except Exception as e:
+                logging.error(f"监控过程出错: {e}")
+                # 如果发生错误，等待一段时间后继续
+                time.sleep(self.retry_interval)
+    
+    def _check_login_status(self):
+        """检查登录状态并在必要时重新登录"""
+        try:
+            # 更新最后检查时间
+            self.last_check_time = time.time()
+            
+            # 检查当前是否登录
+            if not verify_cursor_login(self.email):
+                logging.warning(f"检测到账号 {self.email} 已登出，尝试重新登录")
+                self._attempt_relogin()
+            else:
+                logging.info(f"账号 {self.email} 登录状态正常，JWT 有效")
+        except Exception as e:
+            logging.error(f"检查登录状态时出错: {e}")
+                
+    def _attempt_relogin(self):
+        """尝试重新登录"""
+        try:
+            self.login_attempts += 1
+            logging.info(f"开始第 {self.login_attempts} 次重新登录尝试")
+            
+            # 调用自动重新登录函数
+            if auto_relogin(self.email, self.password, self.reset_machine_id):
+                self.successful_logins += 1
+                logging.info(f"重新登录成功 (成功次数: {self.successful_logins})")
+            else:
+                logging.error("重新登录失败")
+                # 如果失败，等待一段时间再重试
+                time.sleep(self.retry_interval)
+        except Exception as e:
+            logging.error(f"重新登录过程出错: {e}")
+            time.sleep(self.retry_interval)
+    
+    def get_status(self):
+        """获取监控状态信息"""
+        return {
+            "running": self.running,
+            "email": self.email,
+            "last_check": self.last_check_time,
+            "login_attempts": self.login_attempts,
+            "successful_logins": self.successful_logins,
+            "check_interval_minutes": self.check_interval / 60
+        }
+
+
+def auto_relogin(email, password, reset_machine_id=True):
+    """
+    自动重新登录Cursor
+    
+    Args:
+        email: 账号邮箱
+        password: 账号密码
+        reset_machine_id: 是否重置机器码
+        
+    Returns:
+        bool: 是否成功登录
+    """
+    browser_manager = None
+    try:
+        # 初始化浏览器
+        browser_manager = BrowserManager()
+        browser = browser_manager.init_browser()
+        tab = browser.latest_tab
+        
+        # 访问登录页面
+        login_url = "https://authenticator.cursor.sh"
+        tab.get(login_url)
+        
+        # 等待登录表单加载
+        if tab.ele("@name=email", timeout=10):
+            # 输入邮箱
+            tab.ele("@name=email").input(email)
+            time.sleep(random.uniform(1, 2))
+            
+            # 点击下一步按钮
+            tab.ele("@type=submit").click()
+            time.sleep(3)
+            
+            # 处理Turnstile验证
+            handle_turnstile(tab)
+            
+            # 输入密码
+            if tab.ele("@name=password", timeout=10):
+                tab.ele("@name=password").input(password)
+                time.sleep(random.uniform(1, 2))
+                
+                # 提交密码
+                tab.ele("@type=submit").click()
+                time.sleep(3)
+                
+                # 处理Turnstile验证
+                handle_turnstile(tab)
+                
+                # 检查是否登录成功 - 尝试多种验证方式
+                login_success = False
+                
+                # 方式1: 检查是否跳转到账户设置页面
+                if tab.ele("Account Settings", timeout=10) or tab.ele("User Profile", timeout=2):
+                    login_success = True
+                    logging.info("已检测到账户设置页面，登录成功")
+                
+                # 方式2: 检查URL是否包含dashboard
+                elif "dashboard" in tab.url or "cursors" in tab.url:
+                    login_success = True
+                    logging.info("已检测到仪表盘页面，登录成功")
+                
+                if login_success:
+                    # 获取新的会话令牌
+                    token = get_cursor_session_token(tab)
+                    if token:
+                        # 是否需要重置机器码
+                        if reset_machine_id:
+                            logging.info("正在重置机器码...")
+                            greater_than_0_45 = check_cursor_version()
+                            reset_machine_id_func(greater_than_0_45)
+                        
+                        # 更新认证信息
+                        if update_cursor_auth(email=email, access_token=token, refresh_token=token):
+                            logging.info("成功更新Cursor认证信息")
+                            # 重启Cursor以应用新的认证信息
+                            restart_cursor()
+                            return True
+                        else:
+                            logging.error("更新认证信息失败")
+                    else:
+                        logging.error("获取会话令牌失败")
+                else:
+                    logging.error("登录验证失败，未检测到成功登录标志")
+            else:
+                logging.error("未找到密码输入框")
+        else:
+            logging.error("未找到邮箱输入框")
+        
+        return False
+    except Exception as e:
+        logging.error(f"自动登录过程出错: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return False
+    finally:
+        # 确保关闭浏览器
+        if browser_manager:
+            browser_manager.quit()
+
+
+def start_login_monitor():
+    """启动Cursor登录状态监控服务"""
+    # 获取认证信息
+    auth_manager = CursorAuthManager()
+    try:
+        conn = sqlite3.connect(auth_manager.db_path)
+        cursor = conn.cursor()
+        
+        # 获取当前登录的邮箱
+        cursor.execute("SELECT value FROM itemTable WHERE key = ?", ("cursorAuth/cachedEmail",))
+        result = cursor.fetchone()
+        
+        if not result:
+            logging.error("未找到已登录的邮箱，请先完成注册流程")
+            print(f"\n{Fore.RED}错误: 未找到已登录的账号，请先完成注册流程{Style.RESET_ALL}")
+            return False
+            
+        email = result[0]
+        
+        # 提示用户输入密码
+        print(f"\n请为账号 {email} 输入密码以启动监控服务:")
+        password = input("密码: ").strip()
+        
+        if not password:
+            logging.error("密码不能为空")
+            print(f"\n{Fore.RED}错误: 密码不能为空{Style.RESET_ALL}")
+            return False
+        
+        # 让用户设置自定义的检查间隔
+        check_interval = 30  # 默认30分钟
+        print("\n设置检查间隔时间 (分钟):")
+        print("JWT令牌有效期约为2小时，建议设置为30-60分钟")
+        try:
+            interval_input = input(f"请输入检查间隔 (直接回车使用默认值 {check_interval} 分钟): ").strip()
+            if interval_input:
+                check_interval = max(5, min(120, int(interval_input)))  # 限制在5-120分钟范围内
+        except ValueError:
+            logging.warning(f"无效的间隔时间，使用默认值 {check_interval} 分钟")
+        
+        # 让用户设置是否在登出时自动重置机器码
+        should_reset_machine_id = True
+        print("\n是否在检测到登出时自动重置机器码? (y/n):")
+        print("重置机器码可以解决某些登录问题，但可能需要管理员权限")
+        reset_input = input("请选择 (默认是): ").strip().lower()
+        if reset_input and reset_input == 'n':
+            should_reset_machine_id = False
+        
+        # 创建并启动监控器
+        monitor = CursorLoginMonitor(email, password, check_interval=check_interval*60, reset_machine_id=should_reset_machine_id)
+        if monitor.start_monitoring():
+            logging.info(f"已启动对账号 {email} 的监控服务，检查间隔: {check_interval} 分钟")
+            print(f"\n{Fore.GREEN}监控服务已在后台启动!{Style.RESET_ALL}")
+            print("程序将继续在后台检查登录状态，并在必要时自动重新登录。")
+            print(f"检查间隔: {check_interval} 分钟")
+            print("\n按 Ctrl+C 停止监控服务")
+            
+            # 开始运行监控主循环
+            try:
+                # 显示监控状态
+                while monitor.running:
+                    time.sleep(60)  # 每分钟更新一次状态
+                    status = monitor.get_status()
+                    elapsed = time.time() - status["last_check"]
+                    next_check = max(0, monitor.check_interval - elapsed)
+                    
+                    # 清除上一次的状态显示
+                    print("\033[4A", end="")
+                    print("\r" + " "*80)
+                    print("\r" + " "*80)
+                    print("\r" + " "*80)
+                    print("\r" + " "*80)
+                    
+                    # 显示新的状态
+                    print(f"\r当前监控账号: {status['email']}")
+                    print(f"\r检查间隔: {status['check_interval_minutes']:.1f} 分钟")
+                    print(f"\r登录尝试次数: {status['login_attempts']} | 成功次数: {status['successful_logins']}")
+                    print(f"\r下次检查: {next_check/60:.1f} 分钟后")
+            except KeyboardInterrupt:
+                monitor.stop_monitoring()
+                print("\n监控服务已停止")
+            
+            return True
+        else:
+            logging.error("启动监控服务失败")
+            return False
+    except Exception as e:
+        logging.error(f"启动监控服务时出错: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
         return False
 
 
@@ -1281,8 +1828,14 @@ if __name__ == "__main__":
                 # 仅执行重置机器码
                 reset_machine_id_only(greater_than_0_45)
             elif choice == 2:
-                # 执行完整注册流程，共享浏览器管理器实例
+                # 执行传统注册流程，共享浏览器管理器实例
                 full_registration_process(greater_than_0_45, browser_manager)
+            elif choice == 3:
+                # 执行混合认证注册流程，共享浏览器管理器实例
+                hybrid_registration_process(greater_than_0_45, browser_manager)
+            elif choice == 4:
+                # 启动登录状态监控
+                start_login_monitor()
     
     except Exception as e:
         logging.error(f"程序执行出现错误: {str(e)}")
