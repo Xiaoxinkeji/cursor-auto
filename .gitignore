@@ -24,6 +24,8 @@ venv/
 
 node_modules/
 
+# Configuration files with sensitive information
 .env
+official_config.json
 
 screenshots/

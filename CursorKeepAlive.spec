@@ -8,6 +8,7 @@ a = Analysis(
     datas=[
         ('turnstilePatch', 'turnstilePatch'),
         ('cursor_auth_manager.py', '.'),
+        ('.env.example', '.'),
     ],
     hiddenimports=[
         'cursor_auth_manager'
@@ -18,6 +19,10 @@ a = Analysis(
     excludes=[],
     noarchive=False,
 )
+
+# 如果存在官方配置文件，也添加到数据文件中
+if os.path.exists('official_config.json'):
+    a.datas += [('official_config.json', 'official_config.json', 'DATA')]
 
 pyz = PYZ(a.pure)
 

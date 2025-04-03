@@ -400,6 +400,23 @@ def print_end_message():
     )
 
 
+def select_config_mode():
+    """提示用户选择配置模式，返回是否使用官方配置"""
+    print("\n请选择配置模式:")
+    print("1. 官方配置 (使用预配置的QQ邮箱，开箱即用)")
+    print("2. 自定义配置 (使用您自己的邮箱配置)")
+    
+    while True:
+        try:
+            config_choice = int(input("请输入选项 (1 或 2): ").strip())
+            if config_choice in [1, 2]:
+                return config_choice == 1
+            else:
+                print("无效的选项，请重新输入")
+        except ValueError:
+            print("请输入有效的数字")
+
+
 if __name__ == "__main__":
     print_logo()
     greater_than_0_45 = check_cursor_version()
@@ -408,6 +425,13 @@ if __name__ == "__main__":
         logging.info("\n=== 初始化程序 ===")
         ExitCursor()
 
+        # 选择配置模式
+        use_official_config = select_config_mode()
+        
+        # 加载配置
+        configInstance = Config(use_official=use_official_config)
+        configInstance.print_config()
+        
         # 提示用户选择操作模式
         print("\n请选择操作模式:")
         print("1. 仅重置机器码")
@@ -454,7 +478,6 @@ if __name__ == "__main__":
         login_url = "https://authenticator.cursor.sh"
         sign_up_url = "https://authenticator.cursor.sh/sign-up"
         settings_url = "https://www.cursor.com/settings"
-        mail_url = "https://tempmail.plus"
 
         logging.info("正在生成随机账号信息...")
 
@@ -467,7 +490,7 @@ if __name__ == "__main__":
         logging.info(f"生成的邮箱账号: {account}")
 
         logging.info("正在初始化邮箱验证模块...")
-        email_handler = EmailVerificationHandler(account)
+        email_handler = EmailVerificationHandler(account, use_official=use_official_config)
 
         auto_update_cursor_auth = True
 

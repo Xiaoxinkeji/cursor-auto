@@ -3,7 +3,6 @@ import logging
 import time
 import re
 from config import Config
-import requests
 import email
 import imaplib
 import poplib
@@ -11,15 +10,12 @@ from email.parser import Parser
 
 
 class EmailVerificationHandler:
-    def __init__(self,account):
-        self.imap = Config().get_imap()
-        self.username = Config().get_temp_mail()
-        self.epin = Config().get_temp_mail_epin()
-        self.session = requests.Session()
-        self.emailExtension = Config().get_temp_mail_ext()
-        # 获取协议类型，默认为 POP3
-        self.protocol = Config().get_protocol() or 'POP3'
+    def __init__(self, account, use_official=False):
+        config = Config(use_official=use_official)
+        self.imap_config = config.get_imap()
+        self.protocol = config.get_protocol() or 'POP3'
         self.account = account
+        self.using_official = use_official
 
     def get_verification_code(self, max_retries=5, retry_interval=60):
         """
@@ -32,23 +28,18 @@ class EmailVerificationHandler:
         Returns:
             验证码 (字符串或 None)。
         """
-
         for attempt in range(max_retries):
             try:
                 logging.info(f"尝试获取验证码 (第 {attempt + 1}/{max_retries} 次)...")
 
-                if not self.imap:
-                    verify_code, first_id = self._get_latest_mail_code()
-                    if verify_code is not None and first_id is not None:
-                        self._cleanup_mail(first_id)
-                        return verify_code
+                # 根据协议选择获取邮件的方式
+                if self.protocol.upper() == 'IMAP':
+                    verify_code = self._get_mail_code_by_imap()
                 else:
-                    if self.protocol.upper() == 'IMAP':
-                        verify_code = self._get_mail_code_by_imap()
-                    else:
-                        verify_code = self._get_mail_code_by_pop3()
-                    if verify_code is not None:
-                        return verify_code
+                    verify_code = self._get_mail_code_by_pop3()
+                
+                if verify_code is not None:
+                    return verify_code
 
                 if attempt < max_retries - 1:  # 除了最后一次尝试，都等待
                     logging.warning(f"未获取到验证码，{retry_interval} 秒后重试...")
@@ -72,15 +63,15 @@ class EmailVerificationHandler:
             raise Exception("获取验证码超时")
         try:
             # 连接到IMAP服务器
-            mail = imaplib.IMAP4_SSL(self.imap['imap_server'], self.imap['imap_port'])
-            mail.login(self.imap['imap_user'], self.imap['imap_pass'])
+            mail = imaplib.IMAP4_SSL(self.imap_config['imap_server'], self.imap_config['imap_port'])
+            mail.login(self.imap_config['imap_user'], self.imap_config['imap_pass'])
             search_by_date=False
             # 针对网易系邮箱，imap登录后需要附带联系信息，且后续邮件搜索逻辑更改为获取当天的未读邮件
-            if self.imap['imap_user'].endswith(('@163.com', '@126.com', '@yeah.net')):                
-                imap_id = ("name", self.imap['imap_user'].split('@')[0], "contact", self.imap['imap_user'], "version", "1.0.0", "vendor", "imaplib")
+            if self.imap_config['imap_user'].endswith(('@163.com', '@126.com', '@yeah.net')):                
+                imap_id = ("name", self.imap_config['imap_user'].split('@')[0], "contact", self.imap_config['imap_user'], "version", "1.0.0", "vendor", "imaplib")
                 mail.xatom('ID', '("' + '" "'.join(imap_id) + '")')
                 search_by_date=True
-            mail.select(self.imap['imap_dir'])
+            mail.select(self.imap_config['imap_dir'])
             if search_by_date:
                 date = datetime.now().strftime("%d-%b-%Y")
                 status, messages = mail.search(None, f'ON {date} UNSEEN')
@@ -155,9 +146,9 @@ class EmailVerificationHandler:
         pop3 = None
         try:
             # 连接到服务器
-            pop3 = poplib.POP3_SSL(self.imap['imap_server'], int(self.imap['imap_port']))
-            pop3.user(self.imap['imap_user'])
-            pop3.pass_(self.imap['imap_pass'])
+            pop3 = poplib.POP3_SSL(self.imap_config['imap_server'], int(self.imap_config['imap_port']))
+            pop3.user(self.imap_config['imap_user'])
+            pop3.pass_(self.imap_config['imap_pass'])
             
             # 获取最新的10封邮件
             num_messages = len(pop3.list()[1])
@@ -210,66 +201,20 @@ class EmailVerificationHandler:
                 logging.error(f"解码邮件正文失败: {e}")
         return ""
 
-    # 手动输入验证码
-    def _get_latest_mail_code(self):
-        # 获取邮件列表
-        mail_list_url = f"https://tempmail.plus/api/mails?email={self.username}{self.emailExtension}&limit=20&epin={self.epin}"
-        mail_list_response = self.session.get(mail_list_url)
-        mail_list_data = mail_list_response.json()
-        time.sleep(0.5)
-        if not mail_list_data.get("result"):
-            return None, None
-
-        # 获取最新邮件的ID
-        first_id = mail_list_data.get("first_id")
-        if not first_id:
-            return None, None
-
-        # 获取具体邮件内容
-        mail_detail_url = f"https://tempmail.plus/api/mails/{first_id}?email={self.username}{self.emailExtension}&epin={self.epin}"
-        mail_detail_response = self.session.get(mail_detail_url)
-        mail_detail_data = mail_detail_response.json()
-        time.sleep(0.5)
-        if not mail_detail_data.get("result"):
-            return None, None
-
-        # 从邮件文本中提取6位数字验证码
-        mail_text = mail_detail_data.get("text", "")
-        mail_subject = mail_detail_data.get("subject", "")
-        logging.info(f"找到邮件主题: {mail_subject}")
-        # 修改正则表达式，确保 6 位数字不紧跟在字母或域名相关符号后面
-        code_match = re.search(r"(?<![a-zA-Z@.])\b\d{6}\b", mail_text)
-
-        if code_match:
-            return code_match.group(), first_id
-        return None, None
-
-    def _cleanup_mail(self, first_id):
-        # 构造删除请求的URL和数据
-        delete_url = "https://tempmail.plus/api/mails/"
-        payload = {
-            "email": f"{self.username}{self.emailExtension}",
-            "first_id": first_id,
-            "epin": f"{self.epin}",
-        }
-
-        # 最多尝试5次
-        for _ in range(5):
-            response = self.session.delete(delete_url, data=payload)
-            try:
-                result = response.json().get("result")
-                if result is True:
-                    return True
-            except:
-                pass
-
-            # 如果失败,等待0.5秒后重试
-            time.sleep(0.5)
-
-        return False
-
 
 if __name__ == "__main__":
-    email_handler = EmailVerificationHandler()
-    code = email_handler.get_verification_code()
-    print(code)
+    # 测试邮箱验证功能
+    import sys
+    
+    # 检查是否提供了命令行参数
+    use_official = False
+    if len(sys.argv) > 1 and sys.argv[1] == '--official':
+        use_official = True
+    
+    account = "test@example.com"  # 使用一个测试账号
+    email_handler = EmailVerificationHandler(account, use_official=use_official)
+    try:
+        code = email_handler.get_verification_code()
+        print(f"获取到验证码: {code}")
+    except Exception as e:
+        print(f"获取验证码失败: {e}")

@@ -22,6 +22,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller
         pip install -r requirements.txt
+    
+    - name: Create official config
+      run: |
+        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+      shell: bash
         
     - name: Build EXE
       run: |
@@ -49,6 +54,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller
         pip install -r requirements.txt
+    
+    - name: Create official config
+      run: |
+        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
         
     - name: Build MacOS ARM executable
       run: |
@@ -76,6 +85,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller
         pip install -r requirements.txt
+    
+    - name: Create official config
+      run: |
+        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
         
     - name: Build Linux executable
       run: |
@@ -103,6 +116,10 @@ jobs:
         arch -x86_64 pip3 install --upgrade pip
         arch -x86_64 pip3 install pyinstaller
         arch -x86_64 pip3 install -r requirements.txt
+
+    - name: Create official config
+      run: |
+        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
 
     - name: Build MacOS Intel executable
       env:
