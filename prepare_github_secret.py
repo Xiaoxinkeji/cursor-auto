@@ -50,6 +50,7 @@ def encode_config_file(file_path: str) -> None:
         print(f"{Fore.YELLOW}{encoded}{Style.RESET_ALL}")
         
         print(f"\n{Fore.GREEN}请将上面的base64编码内容添加到GitHub Secrets中，名称为 'OFFICIAL_CONFIG'{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}注意: GitHub Actions现在使用Python解码base64内容，不再依赖系统命令，提高了跨平台兼容性。{Style.RESET_ALL}")
         
     except json.JSONDecodeError as e:
         print(f"{Fore.RED}错误: JSON格式无效 - {str(e)}{Style.RESET_ALL}")

@@ -35,6 +35,17 @@
 
 配置完成后，每次创建新的 tag（格式如 `v1.0.0`）时，GitHub Actions 将自动构建并发布新的版本。
 
+### GitHub Actions 问题排除
+
+如果在 GitHub Actions 中遇到配置相关的错误：
+
+1. 确保 `OFFICIAL_CONFIG` Secret 包含有效的 base64 编码内容
+2. 您可以使用 `decode_github_secret.py` 脚本来验证 base64 字符串是否可以被正确解码：
+   ```bash
+   python decode_github_secret.py 您的base64字符串
+   ```
+3. 工作流现在使用 Python 来处理 base64 解码，不再依赖系统命令，这提高了跨平台兼容性
+
 ## 许可证声明
 本项目采用 [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/) 许可证。
 这意味着您可以：

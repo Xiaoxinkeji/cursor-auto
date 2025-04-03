@@ -50,6 +50,8 @@ def decode_base64_to_json(base64_str: str) -> None:
         else:
             print(f"\n{Fore.GREEN}配置有效: 包含所有必要字段{Style.RESET_ALL}")
             
+        print(f"\n{Fore.CYAN}提示: GitHub Actions现在使用Python进行base64解码，不再依赖系统命令，提高了跨平台兼容性。{Style.RESET_ALL}")
+        
     except base64.binascii.Error as e:
         print(f"{Fore.RED}错误: base64解码失败 - {str(e)}{Style.RESET_ALL}")
     except json.JSONDecodeError as e:
