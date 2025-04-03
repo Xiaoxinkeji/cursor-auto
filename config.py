@@ -35,21 +35,33 @@ class Config:
             self._load_official_config(official_config_path)
             logging.info("使用官方配置")
         else:
-            # 加载自定义配置
-            if not os.path.exists(dotenv_path):
-                # 如果找不到.env文件，尝试复制示例文件
-                example_path = os.path.join(application_path, ".env.example")
-                if os.path.exists(example_path):
-                    import shutil
-                    shutil.copy(example_path, dotenv_path)
-                    logging.info(f"已创建配置文件: {dotenv_path}")
-                else:
-                    raise FileNotFoundError(f"配置文件不存在: {dotenv_path}")
+            # 尝试加载自定义配置
+            try:
+                if not os.path.exists(dotenv_path):
+                    # 如果找不到.env文件，尝试复制示例文件
+                    example_path = os.path.join(application_path, ".env.example")
+                    if os.path.exists(example_path):
+                        import shutil
+                        shutil.copy(example_path, dotenv_path)
+                        logging.info(f"已创建配置文件: {dotenv_path}")
+                    else:
+                        # 如果.env和.env.example都不存在，记录警告并回退到官方配置
+                        logging.warning(f"配置文件不存在: {dotenv_path}，自动回退到官方配置")
+                        self.using_official = True
+                        self._load_official_config(official_config_path)
+                        return  # 已加载官方配置，直接返回
 
-            # 加载.env文件
-            load_dotenv(dotenv_path)
-            self._load_env_config()
-            logging.info("使用自定义配置")
+                # 加载.env文件
+                load_dotenv(dotenv_path)
+                self._load_env_config()
+                logging.info("使用自定义配置")
+            except Exception as e:
+                # 如果加载自定义配置失败，记录错误并回退到官方配置
+                logging.error(f"加载自定义配置失败: {e}")
+                logging.warning("自动回退到官方配置")
+                self.using_official = True
+                self._load_official_config(official_config_path)
+                return  # 已加载官方配置，直接返回
 
         self.check_config()
 
@@ -112,16 +124,46 @@ class Config:
 
     def _load_env_config(self):
         """从.env文件加载配置"""
-        # 加载基础配置
-        self.domain = os.getenv("DOMAIN", "").strip()
-        
-        # 加载IMAP/POP3配置
-        self.imap_server = os.getenv("IMAP_SERVER", "").strip()
-        self.imap_port = os.getenv("IMAP_PORT", "").strip()
-        self.imap_user = os.getenv("IMAP_USER", "").strip()
-        self.imap_pass = os.getenv("IMAP_PASS", "").strip()
-        self.imap_dir = os.getenv("IMAP_DIR", "inbox").strip()
-        self.protocol = os.getenv("IMAP_PROTOCOL", "POP3").strip()
+        try:
+            # 加载基础配置，提供合理的默认值
+            self.domain = os.getenv("DOMAIN", "").strip()
+            if not self.domain:
+                logging.warning("DOMAIN环境变量未设置或为空，使用默认域名")
+                self.domain = "xiao89.site"  # 默认域名
+            
+            # 加载IMAP/POP3配置，提供合理的默认值
+            self.imap_server = os.getenv("IMAP_SERVER", "").strip()
+            if not self.imap_server:
+                logging.warning("IMAP_SERVER环境变量未设置或为空，使用默认服务器")
+                self.imap_server = "imap.qq.com"  # 默认IMAP服务器
+                
+            self.imap_port = os.getenv("IMAP_PORT", "").strip()
+            if not self.imap_port:
+                logging.warning("IMAP_PORT环境变量未设置或为空，使用默认端口")
+                self.imap_port = "993"  # 默认IMAP端口
+                
+            self.imap_user = os.getenv("IMAP_USER", "").strip()
+            if not self.imap_user:
+                logging.warning("IMAP_USER环境变量未设置或为空，使用默认用户名")
+                self.imap_user = "3264913523@qq.com"  # 默认IMAP用户名
+                
+            self.imap_pass = os.getenv("IMAP_PASS", "").strip()
+            if not self.imap_pass:
+                logging.warning("IMAP_PASS环境变量未设置或为空，使用默认密码")
+                self.imap_pass = "avvttgebfmlodbfc"  # 默认IMAP密码
+                
+            self.imap_dir = os.getenv("IMAP_DIR", "inbox").strip()
+            self.protocol = os.getenv("IMAP_PROTOCOL", "POP3").strip()
+        except Exception as e:
+            logging.error(f"加载环境变量失败: {e}")
+            # 如果加载失败，设置默认值
+            self.domain = "xiao89.site"
+            self.imap_server = "imap.qq.com"
+            self.imap_port = "993"
+            self.imap_user = "3264913523@qq.com"
+            self.imap_pass = "avvttgebfmlodbfc"
+            self.imap_dir = "inbox"
+            self.protocol = "IMAP"
 
     def get_imap(self):
         return {

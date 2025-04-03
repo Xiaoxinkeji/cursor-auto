@@ -356,17 +356,41 @@ class EmailGenerator:
             )
         ),
     ):
-        configInstance = Config(use_official=use_official)
-        configInstance.print_config()
-        self.domain = configInstance.get_domain()
-        self.names = self.load_names()
+        try:
+            # 显式记录使用的配置模式
+            logging.info(f"EmailGenerator正在初始化，使用配置模式: {'官方' if use_official else '自定义'}")
+            configInstance = Config(use_official=use_official)
+            
+            # 保存domain和其他必要信息
+            self.domain = configInstance.get_domain()
+            if not self.domain:  # 如果domain为空，使用默认域名
+                logging.warning("配置中的域名为空，使用默认域名")
+                self.domain = "xiao89.site"
+        except Exception as e:
+            # 如果配置加载失败，使用默认值
+            logging.error(f"加载配置失败: {e}")
+            logging.warning("使用默认域名")
+            self.domain = "xiao89.site"
+        
+        try:
+            self.names = self.load_names()
+        except Exception as e:
+            logging.error(f"加载名称数据集失败: {e}")
+            # 提供默认名称列表
+            self.names = ["john", "alice", "bob", "emma", "james", "lily", "mike", "sarah"]
+            
         self.default_password = password
         self.default_first_name = self.generate_random_name()
         self.default_last_name = self.generate_random_name()
 
     def load_names(self):
-        with open("names-dataset.txt", "r") as file:
-            return file.read().split()
+        try:
+            with open("names-dataset.txt", "r") as file:
+                return file.read().split()
+        except Exception as e:
+            logging.error(f"无法读取名称数据集: {e}")
+            # 提供一个默认的名称列表作为备用
+            return ["john", "alice", "bob", "emma", "james", "lily", "mike", "sarah"]
 
     def generate_random_name(self):
         """生成随机用户名"""
@@ -537,16 +561,32 @@ if __name__ == "__main__":
 
         logging.info("正在生成随机账号信息...")
 
-        email_generator = EmailGenerator(use_official=use_official_config)
-        first_name = email_generator.default_first_name
-        last_name = email_generator.default_last_name
-        account = email_generator.generate_email()
-        password = email_generator.default_password
+        try:
+            # 确保使用全局配置实例而不是创建新的配置实例
+            email_generator = EmailGenerator(use_official=use_official_config)
+            first_name = email_generator.default_first_name
+            last_name = email_generator.default_last_name
+            account = email_generator.generate_email()
+            password = email_generator.default_password
 
-        logging.info(f"生成的邮箱账号: {account}")
+            logging.info(f"生成的邮箱账号: {account}")
 
-        logging.info("正在初始化邮箱验证模块...")
-        email_handler = EmailVerificationHandler(account, use_official=use_official_config)
+            logging.info("正在初始化邮箱验证模块...")
+            email_handler = EmailVerificationHandler(account, use_official=use_official_config)
+        except Exception as e:
+            logging.error(f"初始化账号生成器或邮箱验证模块失败: {e}")
+            logging.error("可能是配置问题，请确保您的环境配置正确")
+            # 尝试继续执行，使用官方配置重试
+            logging.info("尝试使用官方配置重试...")
+            use_official_config = True
+            configInstance = Config(use_official=True)  # 强制使用官方配置
+            email_generator = EmailGenerator(use_official=True)
+            first_name = email_generator.default_first_name
+            last_name = email_generator.default_last_name
+            account = email_generator.generate_email()
+            password = email_generator.default_password
+            logging.info(f"使用官方配置重新生成的邮箱账号: {account}")
+            email_handler = EmailVerificationHandler(account, use_official=True)
 
         auto_update_cursor_auth = True
 

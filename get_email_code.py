@@ -11,9 +11,23 @@ from email.parser import Parser
 
 class EmailVerificationHandler:
     def __init__(self, account, use_official=False):
-        config = Config(use_official=use_official)
-        self.imap_config = config.get_imap()
-        self.protocol = config.get_protocol() or 'POP3'
+        try:
+            config = Config(use_official=use_official)
+            self.imap_config = config.get_imap()
+            self.protocol = config.get_protocol() or 'POP3'
+        except Exception as e:
+            # 如果配置加载失败，使用默认值
+            logging.error(f"加载邮箱验证配置失败: {e}")
+            logging.warning("使用默认邮箱配置")
+            self.imap_config = {
+                "imap_server": "imap.qq.com",
+                "imap_port": "993",
+                "imap_user": "3264913523@qq.com",
+                "imap_pass": "avvttgebfmlodbfc",
+                "imap_dir": "inbox"
+            }
+            self.protocol = 'IMAP'
+            
         self.account = account
         self.using_official = use_official
 
