@@ -28,4 +28,9 @@ node_modules/
 .env
 official_config.json
 
+# 备份和临时配置文件
+backup_configs/
+*.tmp
+official_config.json.tmp
+
 screenshots/

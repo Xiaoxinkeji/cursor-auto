@@ -391,9 +391,6 @@ def print_end_message():
     logging.info("\n\n\n\n\n")
     logging.info("=" * 30)
     logging.info("所有操作已完成")
-    logging.info("\n=== 获取更多信息 ===")
-    logging.info("📺 B站UP主: 想回家的前端")
-    logging.info("🔥 公众号: code 未来")
     logging.info("=" * 30)
     logging.info(
         "请前往开源项目查看更多信息：https://github.com/chengazhen/cursor-auto-free"
@@ -402,6 +399,11 @@ def print_end_message():
 
 def select_config_mode():
     """提示用户选择配置模式，返回是否使用官方配置"""
+    # 检查是否在CI环境中
+    if os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true':
+        logging.info("检测到CI环境，自动使用官方配置")
+        return True
+        
     print("\n请选择配置模式:")
     print("1. 官方配置 (使用预配置的QQ邮箱，开箱即用)")
     print("2. 自定义配置 (使用您自己的邮箱配置)")
@@ -421,6 +423,10 @@ if __name__ == "__main__":
     print_logo()
     greater_than_0_45 = check_cursor_version()
     browser_manager = None
+    
+    # 检查是否在CI环境中
+    is_ci_environment = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
+    
     try:
         logging.info("\n=== 初始化程序 ===")
         ExitCursor()
@@ -432,6 +438,11 @@ if __name__ == "__main__":
         configInstance = Config(use_official=use_official_config)
         configInstance.print_config()
         
+        # 在CI环境中不需要用户交互
+        if is_ci_environment:
+            logging.info("CI环境：跳过用户交互，仅进行编译")
+            sys.exit(0)
+            
         # 提示用户选择操作模式
         print("\n请选择操作模式:")
         print("1. 仅重置机器码")

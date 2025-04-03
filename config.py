@@ -10,6 +10,11 @@ class Config:
         # 记录使用的是官方配置还是自定义配置
         self.using_official = use_official
         
+        # 检查是否在CI环境中
+        if os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true':
+            self.using_official = True
+            logging.info("检测到CI环境，使用官方配置")
+        
         # 获取应用程序的根目录路径
         if getattr(sys, "frozen", False):
             # 如果是打包后的可执行文件
@@ -25,7 +30,7 @@ class Config:
         dotenv_path = os.path.join(application_path, ".env")
 
         # 根据配置模式加载不同的配置
-        if use_official and os.path.exists(official_config_path):
+        if self.using_official:
             # 加载官方配置
             self._load_official_config(official_config_path)
             logging.info("使用官方配置")
@@ -51,8 +56,19 @@ class Config:
     def _load_official_config(self, config_path):
         """从官方配置文件加载配置"""
         try:
-            with open(config_path, 'r', encoding='utf-8') as file:
-                config = json.load(file)
+            # 检查官方配置文件是否存在
+            if not os.path.exists(config_path):
+                # 尝试使用示例配置
+                example_path = config_path.replace('.json', '.example.json')
+                if os.path.exists(example_path):
+                    logging.warning(f"官方配置文件不存在，尝试使用示例配置: {example_path}")
+                    with open(example_path, 'r', encoding='utf-8') as file:
+                        config = json.load(file)
+                else:
+                    raise FileNotFoundError(f"官方配置文件不存在: {config_path}，也找不到示例配置")
+            else:
+                with open(config_path, 'r', encoding='utf-8') as file:
+                    config = json.load(file)
                 
             # 设置配置项
             self.domain = config.get("DOMAIN", "")

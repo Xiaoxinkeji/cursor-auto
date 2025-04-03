@@ -20,9 +20,28 @@ a = Analysis(
     noarchive=False,
 )
 
-# 如果存在官方配置文件，也添加到数据文件中
-if os.path.exists('official_config.json'):
+# 如果存在官方配置文件，添加到数据文件中
+official_config_exists = os.path.exists('official_config.json')
+example_config_exists = os.path.exists('official_config.example.json')
+
+if official_config_exists:
+    # 使用已有的官方配置
     a.datas += [('official_config.json', 'official_config.json', 'DATA')]
+elif example_config_exists:
+    # 不存在官方配置但存在示例配置，复制示例文件为临时官方配置
+    import shutil
+    temp_config = 'official_config.json.tmp'
+    shutil.copy('official_config.example.json', temp_config)
+    a.datas += [('official_config.json', temp_config, 'DATA')]
+    
+    # 添加清理步骤
+    import atexit
+    def cleanup():
+        if os.path.exists(temp_config):
+            os.remove(temp_config)
+    atexit.register(cleanup)
+else:
+    print("警告: 未找到官方配置文件或示例配置文件。打包的应用程序将无法使用官方配置模式。")
 
 pyz = PYZ(a.pure)
 

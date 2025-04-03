@@ -26,11 +26,15 @@ jobs:
     - name: Create official config
       run: |
         echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
       shell: bash
         
     - name: Build EXE
       run: |
         pyinstaller CursorKeepAlive.spec
+      env:
+        CI: 'true'
+        GITHUB_ACTIONS: 'true'
         
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
@@ -58,10 +62,14 @@ jobs:
     - name: Create official config
       run: |
         echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
         
     - name: Build MacOS ARM executable
       run: |
         pyinstaller CursorKeepAlive.spec
+      env:
+        CI: 'true'
+        GITHUB_ACTIONS: 'true'
         
     - name: Upload MacOS ARM artifact
       uses: actions/upload-artifact@v4
@@ -89,10 +97,14 @@ jobs:
     - name: Create official config
       run: |
         echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
         
     - name: Build Linux executable
       run: |
         pyinstaller CursorKeepAlive.spec
+      env:
+        CI: 'true'
+        GITHUB_ACTIONS: 'true'
         
     - name: Upload Linux artifact
       uses: actions/upload-artifact@v4
@@ -120,10 +132,13 @@ jobs:
     - name: Create official config
       run: |
         echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
 
     - name: Build MacOS Intel executable
       env:
         TARGET_ARCH: 'x86_64'
+        CI: 'true'
+        GITHUB_ACTIONS: 'true'
       run: |
         arch -x86_64 python3 -m PyInstaller CursorKeepAlive.spec
         
