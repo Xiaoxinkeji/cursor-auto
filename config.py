@@ -58,6 +58,14 @@ class Config:
         try:
             # 检查官方配置文件是否存在
             if not os.path.exists(config_path):
+                # 检查是否在GitHub Actions环境中
+                if os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true':
+                    # GitHub Actions环境中，配置由workflow中的base64解码创建
+                    if os.path.exists(config_path):
+                        logging.info("CI环境: 使用workflow创建的配置文件")
+                    else:
+                        logging.error("CI环境: 配置文件未找到，请检查GitHub Secrets是否正确设置")
+
                 # 尝试使用示例配置
                 example_path = config_path.replace('.json', '.example.json')
                 if os.path.exists(example_path):

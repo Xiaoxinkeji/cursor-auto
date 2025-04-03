@@ -25,7 +25,8 @@ jobs:
     
     - name: Create official config
       run: |
-        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        # 使用base64解码方式处理JSON内容，避免特殊字符和多行问题
+        echo "${{ secrets.OFFICIAL_CONFIG }}" | base64 -d > official_config.json
         python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
       shell: bash
         
@@ -61,7 +62,8 @@ jobs:
     
     - name: Create official config
       run: |
-        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        # 使用base64解码方式处理JSON内容，避免特殊字符和多行问题
+        echo "${{ secrets.OFFICIAL_CONFIG }}" | base64 -d > official_config.json
         python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
         
     - name: Build MacOS ARM executable
@@ -96,7 +98,8 @@ jobs:
     
     - name: Create official config
       run: |
-        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        # 使用base64解码方式处理JSON内容，避免特殊字符和多行问题
+        echo "${{ secrets.OFFICIAL_CONFIG }}" | base64 -d > official_config.json
         python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
         
     - name: Build Linux executable
@@ -131,7 +134,8 @@ jobs:
 
     - name: Create official config
       run: |
-        echo ${{ secrets.OFFICIAL_CONFIG }} > official_config.json
+        # 使用base64解码方式处理JSON内容，避免特殊字符和多行问题
+        echo "${{ secrets.OFFICIAL_CONFIG }}" | base64 -d > official_config.json
         python -c "import json; print('配置验证成功' if json.load(open('official_config.json')) else '配置为空')"
 
     - name: Build MacOS Intel executable
