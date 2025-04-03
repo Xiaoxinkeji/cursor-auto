@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-配置处理工具
+Configuration Processing Tool
 
-此脚本用于处理GitHub Actions中的配置数据。
-它会尝试将配置解析为JSON，并生成有效的配置文件。
+This script is used to process configuration data in GitHub Actions.
+It will attempt to parse the configuration as JSON and generate a valid configuration file.
 """
 
 import base64
@@ -16,64 +16,64 @@ import sys
 
 def decode_config():
     """
-    处理配置数据
+    Process configuration data
     
-    从环境变量OFFICIAL_CONFIG获取配置数据，
-    尝试解析为JSON，并生成有效的配置文件。
+    Get configuration data from the OFFICIAL_CONFIG environment variable,
+    try to parse it as JSON, and generate a valid configuration file.
     """
-    # 获取配置
+    # Get configuration
     config_data = os.environ.get('OFFICIAL_CONFIG', '')
 
-    # 处理配置
+    # Process configuration
     try:
         if not config_data:
-            # 空配置，使用空JSON对象
+            # Empty configuration, use empty JSON object
             config_json = '{}'
-            print("警告: 未提供配置数据，使用空配置。")
+            print("WARNING: No configuration data provided, using empty configuration.")
         else:
-            # 首先尝试直接作为JSON解析
+            # First try to parse directly as JSON
             try:
-                json.loads(config_data)  # 验证JSON有效性
+                json.loads(config_data)  # Validate JSON
                 config_json = config_data
-                print("成功: 配置已作为JSON处理。")
+                print("SUCCESS: Configuration processed as JSON.")
             except json.JSONDecodeError:
-                # 如果JSON解析失败，尝试作为base64解码
+                # If JSON parsing fails, try to decode as base64
                 try:
-                    # 修复base64填充
+                    # Fix base64 padding
                     padding = len(config_data) % 4
                     if padding:
                         config_data += '=' * (4 - padding)
                     
-                    # 解码
+                    # Decode
                     config_json = base64.b64decode(config_data).decode('utf-8')
                     
-                    # 验证JSON有效性
+                    # Validate JSON
                     json.loads(config_json)
-                    print("成功: 配置已解码处理。")
+                    print("SUCCESS: Configuration decoded and processed.")
                 except Exception as e:
-                    print(f"警告: 提供的数据不是有效的JSON格式。使用空配置。")
-                    print(f"原始错误: {str(e)}")
+                    print(f"WARNING: The provided data is not a valid JSON format. Using empty configuration.")
+                    print(f"Original error: {str(e)}")
                     config_json = '{}'
         
-        # 写入配置文件
+        # Write configuration file
         with open('official_config.json', 'w') as f:
             f.write(config_json)
         
-        # 验证结果
+        # Validate result
         with open('official_config.json', 'r') as f:
             content = json.load(f)
         
         if content:
-            print('配置验证成功')
-            # 输出配置字段但隐藏敏感值
+            print('Configuration validation successful')
+            # Output configuration fields but hide sensitive values
             safe_content = {k: '***' if k in ['IMAP_PASS'] else v for k, v in content.items()}
-            print(f"配置内容: {json.dumps(safe_content, ensure_ascii=False)}")
+            print(f"Configuration content: {json.dumps(safe_content, ensure_ascii=False)}")
         else:
-            print('配置为空')
+            print('Configuration is empty')
         
     except Exception as e:
-        print(f'处理配置时出错: {str(e)}')
-        # 确保至少有一个有效的配置文件
+        print(f'Error processing configuration: {str(e)}')
+        # Ensure at least one valid configuration file
         with open('official_config.json', 'w') as f:
             f.write('{}')
 
