@@ -3,6 +3,7 @@ import os
 import sys
 import json
 from logger import logging
+import base64
 
 
 class Config:
@@ -65,6 +66,17 @@ class Config:
 
         self.check_config()
 
+    @staticmethod
+    def _decode_value(encoded_value):
+        """解码加密的配置值"""
+        try:
+            # 简单的Base64解码
+            decoded_bytes = base64.b64decode(encoded_value)
+            return decoded_bytes.decode('utf-8')
+        except Exception as e:
+            logging.error(f"解码配置值失败: {e}")
+            return "<解码失败>"
+
     def _load_official_config(self, config_path):
         """从官方配置文件加载配置"""
         try:
@@ -94,8 +106,21 @@ class Config:
             self.domain = config.get("DOMAIN", "")
             self.imap_server = config.get("IMAP_SERVER", "")
             self.imap_port = config.get("IMAP_PORT", "")
-            self.imap_user = config.get("IMAP_USER", "")
-            self.imap_pass = config.get("IMAP_PASS", "")
+            
+            # 解码敏感信息
+            encoded_user = config.get("IMAP_USER", "")
+            encoded_pass = config.get("IMAP_PASS", "")
+            
+            if encoded_user.startswith("BASE64:"):
+                self.imap_user = self._decode_value(encoded_user[7:])
+            else:
+                self.imap_user = encoded_user
+                
+            if encoded_pass.startswith("BASE64:"):
+                self.imap_pass = self._decode_value(encoded_pass[7:])
+            else:
+                self.imap_pass = encoded_pass
+                
             self.imap_dir = config.get("IMAP_DIR", "inbox")
             self.protocol = config.get("IMAP_PROTOCOL", "POP3")
         except Exception as e:
@@ -105,19 +130,34 @@ class Config:
             self.domain = config.get("DOMAIN", "")
             self.imap_server = config.get("IMAP_SERVER", "")
             self.imap_port = config.get("IMAP_PORT", "")
-            self.imap_user = config.get("IMAP_USER", "")
-            self.imap_pass = config.get("IMAP_PASS", "")
+            
+            # 解码敏感信息
+            encoded_user = config.get("IMAP_USER", "")
+            encoded_pass = config.get("IMAP_PASS", "")
+            
+            if encoded_user.startswith("BASE64:"):
+                self.imap_user = self._decode_value(encoded_user[7:])
+            else:
+                self.imap_user = encoded_user
+                
+            if encoded_pass.startswith("BASE64:"):
+                self.imap_pass = self._decode_value(encoded_pass[7:])
+            else:
+                self.imap_pass = encoded_pass
+                
             self.imap_dir = config.get("IMAP_DIR", "inbox")
             self.protocol = config.get("IMAP_PROTOCOL", "POP3")
     
     def _get_default_config(self):
-        """返回内置的默认配置"""
+        """返回内置的默认配置，使用BASE64编码敏感信息"""
+        # 原始值为 3264913523@qq.com 和 avvttgebfmlodbfc
+        # Base64编码后: MzI2NDkxMzUyM0BxcS5jb20= 和 YXZ2dHRnZWJmbWxvZGJmYw==
         return {
-            "DOMAIN": "xiao89.site",
+            "DOMAIN": "bsmail.xyz",
             "IMAP_SERVER": "imap.qq.com",
             "IMAP_PORT": "993",
-            "IMAP_USER": "<请在配置文件中设置>",
-            "IMAP_PASS": "<请在配置文件中设置>",
+            "IMAP_USER": "BASE64:MzI2NDkxMzUyM0BxcS5jb20=",
+            "IMAP_PASS": "BASE64:YXZ2dHRnZWJmbWxvZGJmYw==",
             "IMAP_DIR": "inbox",
             "IMAP_PROTOCOL": "IMAP"
         }
@@ -129,7 +169,7 @@ class Config:
             self.domain = os.getenv("DOMAIN", "").strip()
             if not self.domain:
                 logging.warning("DOMAIN环境变量未设置或为空，使用默认域名")
-                self.domain = "xiao89.site"  # 默认域名
+                self.domain = "bsmail.xyz"  # 默认域名
             
             # 加载IMAP/POP3配置，提供合理的默认值
             self.imap_server = os.getenv("IMAP_SERVER", "").strip()
@@ -157,7 +197,7 @@ class Config:
         except Exception as e:
             logging.error(f"加载环境变量失败: {e}")
             # 如果加载失败，设置默认值
-            self.domain = "xiao89.site"
+            self.domain = "bsmail.xyz"
             self.imap_server = "imap.qq.com"
             self.imap_port = "993"
             self.imap_user = "<请在配置文件中设置>"
@@ -200,7 +240,6 @@ class Config:
         1. 基础配置需要设置DOMAIN
         2. 邮箱配置需要 IMAP_SERVER、IMAP_PORT、IMAP_USER、IMAP_PASS
         3. IMAP_DIR 是可选的
-        4. 敏感配置不能使用占位符值
         """
         # 基础配置检查
         required_configs = {
@@ -226,10 +265,6 @@ class Config:
                 raise ValueError(
                     f"{name}未配置，请在配置文件中设置 {key.upper()}"
                 )
-                
-            # 检查占位符值
-            if key in ["imap_user", "imap_pass"] and any(marker in str(value) for marker in ["<", ">"]):
-                raise ValueError(f"请替换{name}中的占位符值: {key.upper()}")
 
         # IMAP_DIR 是可选的，如果设置了就检查其有效性
         if self.imap_dir != "null" and not self.check_is_valid(self.imap_dir):

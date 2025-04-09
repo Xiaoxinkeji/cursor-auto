@@ -635,10 +635,10 @@ def full_registration_process(greater_than_0_45, browser_manager=None):
             need_close_browser = True
         
         # 选择配置模式
-        use_official_config = select_config_mode()
+        use_official = select_config_mode()
         
         # 加载配置
-        configInstance = Config(use_official=use_official_config)
+        configInstance = Config(use_official=use_official)
         configInstance.print_config()
 
         if not browser_manager.browser:
@@ -670,7 +670,7 @@ def full_registration_process(greater_than_0_45, browser_manager=None):
 
         try:
             # 确保使用全局配置实例而不是创建新的配置实例
-            email_generator = EmailGenerator(use_official=use_official_config)
+            email_generator = EmailGenerator(use_official=use_official)
             first_name = email_generator.default_first_name
             last_name = email_generator.default_last_name
             account = email_generator.generate_email()
@@ -679,13 +679,13 @@ def full_registration_process(greater_than_0_45, browser_manager=None):
             logging.info(f"生成的邮箱账号: {account}")
 
             logging.info("正在初始化邮箱验证模块...")
-            email_handler = EmailVerificationHandler(account, use_official=use_official_config)
+            email_handler = EmailVerificationHandler(account, use_official=use_official)
         except Exception as e:
             logging.error(f"初始化账号生成器或邮箱验证模块失败: {e}")
             logging.error("可能是配置问题，请确保您的环境配置正确")
             # 尝试继续执行，使用官方配置重试
             logging.info("尝试使用官方配置重试...")
-            use_official_config = True
+            use_official = True
             configInstance = Config(use_official=True)  # 强制使用官方配置
             email_generator = EmailGenerator(use_official=True)
             first_name = email_generator.default_first_name

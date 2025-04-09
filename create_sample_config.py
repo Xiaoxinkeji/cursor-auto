@@ -8,8 +8,8 @@ def create_sample_config():
         "DOMAIN": "xiao89.site",
         "IMAP_SERVER": "imap.qq.com",
         "IMAP_PORT": "993",
-        "IMAP_USER": "<请在此处填写您的QQ邮箱>",
-        "IMAP_PASS": "<请在此处填写您的QQ邮箱授权码>",
+        "IMAP_USER": "your_qq_email@qq.com",
+        "IMAP_PASS": "your_qq_authorization_code",
         "IMAP_DIR": "inbox",
         "IMAP_PROTOCOL": "IMAP"
     }
