@@ -116,8 +116,8 @@ class Config:
             "DOMAIN": "xiao89.site",
             "IMAP_SERVER": "imap.qq.com",
             "IMAP_PORT": "993",
-            "IMAP_USER": "3264913523@qq.com",
-            "IMAP_PASS": "avvttgebfmlodbfc",
+            "IMAP_USER": "<请在配置文件中设置>",
+            "IMAP_PASS": "<请在配置文件中设置>",
             "IMAP_DIR": "inbox",
             "IMAP_PROTOCOL": "IMAP"
         }
@@ -144,13 +144,13 @@ class Config:
                 
             self.imap_user = os.getenv("IMAP_USER", "").strip()
             if not self.imap_user:
-                logging.warning("IMAP_USER环境变量未设置或为空，使用默认用户名")
-                self.imap_user = "3264913523@qq.com"  # 默认IMAP用户名
+                logging.warning("IMAP_USER环境变量未设置或为空")
+                self.imap_user = "<请在配置文件中设置>"  # 安全的默认值
                 
             self.imap_pass = os.getenv("IMAP_PASS", "").strip()
             if not self.imap_pass:
-                logging.warning("IMAP_PASS环境变量未设置或为空，使用默认密码")
-                self.imap_pass = "avvttgebfmlodbfc"  # 默认IMAP密码
+                logging.warning("IMAP_PASS环境变量未设置或为空")
+                self.imap_pass = "<请在配置文件中设置>"  # 安全的默认值
                 
             self.imap_dir = os.getenv("IMAP_DIR", "inbox").strip()
             self.protocol = os.getenv("IMAP_PROTOCOL", "IMAP").strip()
@@ -160,8 +160,8 @@ class Config:
             self.domain = "xiao89.site"
             self.imap_server = "imap.qq.com"
             self.imap_port = "993"
-            self.imap_user = "3264913523@qq.com"
-            self.imap_pass = "avvttgebfmlodbfc"
+            self.imap_user = "<请在配置文件中设置>"
+            self.imap_pass = "<请在配置文件中设置>"
             self.imap_dir = "inbox"
             self.protocol = "IMAP"
 
@@ -200,6 +200,7 @@ class Config:
         1. 基础配置需要设置DOMAIN
         2. 邮箱配置需要 IMAP_SERVER、IMAP_PORT、IMAP_USER、IMAP_PASS
         3. IMAP_DIR 是可选的
+        4. 敏感配置不能使用占位符值
         """
         # 基础配置检查
         required_configs = {
@@ -225,6 +226,10 @@ class Config:
                 raise ValueError(
                     f"{name}未配置，请在配置文件中设置 {key.upper()}"
                 )
+                
+            # 检查占位符值
+            if key in ["imap_user", "imap_pass"] and any(marker in str(value) for marker in ["<", ">"]):
+                raise ValueError(f"请替换{name}中的占位符值: {key.upper()}")
 
         # IMAP_DIR 是可选的，如果设置了就检查其有效性
         if self.imap_dir != "null" and not self.check_is_valid(self.imap_dir):
