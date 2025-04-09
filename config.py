@@ -153,7 +153,7 @@ class Config:
                 self.imap_pass = "avvttgebfmlodbfc"  # 默认IMAP密码
                 
             self.imap_dir = os.getenv("IMAP_DIR", "inbox").strip()
-            self.protocol = os.getenv("IMAP_PROTOCOL", "POP3").strip()
+            self.protocol = os.getenv("IMAP_PROTOCOL", "IMAP").strip()
         except Exception as e:
             logging.error(f"加载环境变量失败: {e}")
             # 如果加载失败，设置默认值
