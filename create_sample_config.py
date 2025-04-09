@@ -5,11 +5,11 @@ import sys
 def create_sample_config():
     """创建示例官方配置文件，仅供开发测试使用"""
     sample_config = {
-        "DOMAIN": "example.com",
-        "IMAP_SERVER": "imap.example.com",
+        "DOMAIN": "xiao89.site",
+        "IMAP_SERVER": "imap.qq.com",
         "IMAP_PORT": "993",
-        "IMAP_USER": "test@example.com",
-        "IMAP_PASS": "password123",
+        "IMAP_USER": "your_qq_email@qq.com",
+        "IMAP_PASS": "your_qq_authorization_code",
         "IMAP_DIR": "inbox",
         "IMAP_PROTOCOL": "IMAP"
     }

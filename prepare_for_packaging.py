@@ -29,8 +29,8 @@ def prepare_for_packaging():
                 "DOMAIN": "xiao89.site",
                 "IMAP_SERVER": "imap.qq.com",
                 "IMAP_PORT": "993",
-                "IMAP_USER": "3264913523@qq.com",
-                "IMAP_PASS": "avvttgebfmlodbfc",
+                "IMAP_USER": "your_qq_email@qq.com",
+                "IMAP_PASS": "your_qq_authorization_code",
                 "IMAP_DIR": "inbox",
                 "IMAP_PROTOCOL": "IMAP"
             }
