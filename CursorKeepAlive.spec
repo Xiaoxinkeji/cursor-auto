@@ -45,7 +45,7 @@ else:
     import json
     temp_config = 'official_config.json.tmp'
     default_config = {
-        "DOMAIN": "xiao89.site",
+        "DOMAIN": "bsmail.xyz",
         "IMAP_SERVER": "imap.qq.com",
         "IMAP_PORT": "993",
         "IMAP_USER": "3264913523@qq.com",
