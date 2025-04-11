@@ -153,7 +153,7 @@ class Config:
         # 原始值为 3264913523@qq.com 和 avvttgebfmlodbfc
         # Base64编码后: MzI2NDkxMzUyM0BxcS5jb20= 和 YXZ2dHRnZWJmbWxvZGJmYw==
         return {
-            "DOMAIN": "bsmail.xyz",
+            "DOMAIN": "xiao09.icu",
             "IMAP_SERVER": "imap.qq.com",
             "IMAP_PORT": "993",
             "IMAP_USER": "BASE64:MzI2NDkxMzUyM0BxcS5jb20=",
@@ -197,7 +197,7 @@ class Config:
         except Exception as e:
             logging.error(f"加载环境变量失败: {e}")
             # 如果加载失败，设置默认值
-            self.domain = "bsmail.xyz"
+            self.domain = "xiao09.icu"
             self.imap_server = "imap.qq.com"
             self.imap_port = "993"
             self.imap_user = "<请在配置文件中设置>"
